@@ -10,13 +10,13 @@ df = pd.read_parquet("00_77142-vcf_wide.parquet").fillna(0)
 pca = PCA(n_components=2, svd_solver="randomized", random_state=42)
 
 # %% Fit PCA model and create transformed data for plotting
-transformed = pca.fit_transform(df)
-
-# %% Add patient IDs (pid) index to transformed data
-transformed.index = df.index
-
-# %% Label transformed data columns as PC1 and PC2
-transformed.columns = ["PC1", "PC2"]
+transformed = pd.DataFrame(
+    pca.fit_transform(df),
+    # Add patient IDs (pid) index to transformed data
+    index=df.index,
+    # Label transformed data columns as PC1 and PC2
+    columns=["PC1", "PC2"]
+)
 
 # %% Save transformed data for plotting
 transformed.to_csv("01_77142-vcf_2-component-pca-transformed.csv")
