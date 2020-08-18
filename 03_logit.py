@@ -45,7 +45,6 @@ Xy = dummy_df[[
 X = Xy.drop("y", axis=1)
 y = Xy["y"]
 
-pred = clus_fit.predict(X)
 # %% Fit base model with scikit-learn
 base_lr = LogisticRegression(penalty='none')
 base_lr.fit(X[["covv_patient_age", "gender"]], y)
@@ -65,12 +64,15 @@ plt.savefig(
 )
 plt.show()
 
+# %% Use sklearn logisitic regression model for prediction
+pred = clus_lr.predict(X)
+
 # %% Show model metrics
 print(classification_report(y, pred))
 print(confusion_matrix(y, pred))
-print(precision_score(y, pred))
-print(recall_score(y, pred))
-print(f1_score(y, pred))
+precision_score(y, pred)
+recall_score(y, pred)
+f1_score(y, pred)
 
 # %% Manually calculate model metrics (work in progress)
 true_pred = pd.DataFrame({"actual": y, "predicted": pred}).sort_values(["predicted"])

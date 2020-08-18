@@ -3,13 +3,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import joblib
 from sklearn.cluster import KMeans
 
 # %% Read in PCA transformed data
 df = pd.read_parquet("01_77142-vcf_2-component-pca-transformed.parquet")
 
 # %% Read in outcome data and create label and patient ID (pid) columns
-all_outcomes = pd.read_csv("200818_emm_IDsandstatus_all.csv")
+all_outcomes = pd.read_csv("200818_emm_IDsandstatus_all_plus.csv")
 all_outcomes = all_outcomes.assign(
     all_labels=all_outcomes.covv_patient_status.map(
         {
@@ -67,7 +68,7 @@ mort = mort.assign(
 )
 
 # %% Save combined clusters, PCA transformed, and mortality data
-df.to_parquet(
+mort.to_parquet(
     "02_77142-vcf_"
     "2-component-pca-transformed_"
     "mortality_"
@@ -84,8 +85,8 @@ relative_df[["red", "green", "blue"]].divide(relative_df["green"], axis=0)
 
 # %% Plot clusters using seaborn
 sns.scatterplot(
-    x="0",
-    y="1",
+    x="PC1",
+    y="PC2",
     alpha=0.2,
     s=256,
     hue="cluster",
@@ -112,10 +113,10 @@ top_vars = pd.read_csv(
 
 # %% Use quiver to generate the variable projections
 plt.quiver(
-    np.zeros(top_vars.shape[1]),
-    np.zeros(top_vars.shape[1]),
-    top_vars.iloc[0, :],
-    top_vars.iloc[1, :],
+    np.zeros(top_vars.shape[0]),
+    np.zeros(top_vars.shape[0]),
+    top_vars.iloc[:, 1],
+    top_vars.iloc[:, 2],
     angles='xy',
     scale_units='xy',
     scale=1
