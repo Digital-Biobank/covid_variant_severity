@@ -58,6 +58,11 @@ clus_lr.fit(X, y)
 plot_roc_curve(base_lr, X[["covv_patient_age", "gender"]], y)
 plot_roc_curve(clus_lr, X, y)
 plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', label='Chance', alpha=.8)
+plt.savefig(
+    "02_77142-vcf_2-component-pca-transformed_"
+    "mortality_3-cluster-kmeans_"
+    "logisitic-regression_roc-curve.png"
+)
 plt.show()
 
 # %% Show model metrics
