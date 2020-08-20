@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import joblib
 from sklearn.cluster import KMeans
 
 # %% Read in PCA transformed data
@@ -23,6 +22,25 @@ all_outcomes = all_outcomes.assign(
             "Asymptomatic": 0,
         }
     ),
+    is_red=all_outcomes.covv_patient_status.map(
+        {
+            "Asymptomatic": 0,
+            "Deceased": 1,
+            "Epidemiology Study": 0,
+            "Live": 0,
+            "Mild": 0,
+            "Severe": 1,
+            "Pneumonia (chest X-ray)": 1,
+            "Pneumonia (chest X-ray), not critical": 1,
+            "Screening": 1,
+            "Symptomatic": 1,
+        }
+    ),
+    # %% Binary encode mortality data and gender
+    is_dead=all_outcomes["covv_patient_status"].map({"Live": 0, "Deceased": 1}),
+    is_symp=all_outcomes["covv_patient_status"].map({"Asymptomatic": 0, "Symptomatic": 1}),
+    is_sevr=all_outcomes["covv_patient_status"].map({"Mild": 0, "Severe": 1}),
+    gender=all_outcomes["covv_gender"].map({"Female": 0, "Male": 1}),
     pid=all_outcomes["covv_accession_id"].str.extract(
         r"(\d+)",
         expand=False
@@ -33,7 +51,7 @@ all_outcomes = all_outcomes.assign(
 df = df.join(all_outcomes)
 
 # %% Drop rows without one of the labels in all_labels
-df = df.dropna(subset=["all_labels"])
+df = df.dropna(subset=["is_red"])
 
 # %% Save combined PCA transformed and outcome data
 df.to_parquet(
@@ -41,7 +59,7 @@ df.to_parquet(
 )
 
 # %% Instantiate K-means model with three clusters
-km = KMeans(n_clusters=3)
+km = KMeans(n_clusters=3, random_state=42)
 
 # %% Fit K-means model to principal components (PC1, PC2)
 km.fit(df[["PC1", "PC2"]])
@@ -58,25 +76,11 @@ df.to_parquet(
     ".parquet"
 )
 
-# %% Create data subsets
-mild = df[df["covv_patient_status"].isin(["Mild", "Severe"])]
-mort = df[df["covv_patient_status"].isin(["Live", "Deceased"])]
-symp = df[df["covv_patient_status"].isin(["Asymptomatic", "Symptomatic"])]
-
-# %% Binary encode mortality data and gender
-mort = mort.assign(
-    y=mort["covv_patient_status"].map({"Live": 0, "Deceased": 1}),
-    gender=mort["covv_gender"].map({"Female": 0, "Male": 1})
-)
-
-# %% Save combined clusters, PCA transformed, and mortality data
-mort.to_parquet(
-    "02_77142-vcf_"
-    "2-component-pca-transformed_"
-    "mortality_"
-    "3-cluster-kmeans_random"
-    ".parquet"
-)
+# %% Drop rows without one of the labels in is_red
+red = df.dropna(subset=["is_red"])
+dead = df.dropna(subset=["is_dead"])
+symp = df.dropna(subset=["is_symp"])
+sevr = df.dropna(subset=["is_sevr"])
 
 # %% Compare clusters
 compare_df = df.groupby(["cluster", "covv_patient_status"]).size().unstack()
@@ -92,23 +96,23 @@ sns.scatterplot(
     alpha=0.2,
     s=256,
     hue="cluster",
-    data=mort
+    data=dead
 )
 plt.show()
-
-# %% Plot clusters and variable projections using matplotlib
-colormap = np.array(['r', 'g', 'b'])
-plt.scatter(
-    x=mort.iloc[:, 0],
-    y=mort.iloc[:, 1],
-    s=256,
-    c=colormap[mort["cluster"]],
-    alpha=0.4
-)
 
 # %% Read in top variants for variable projection plotting using matplotlib
 top_vars = pd.read_csv(
     "01_77142-vcf_2-component-pca-components_top-variants_long_random.csv"
+)
+
+# %% Plot clusters and variable projections using matplotlib
+colormap = np.array(['r', 'g', 'b'])
+plt.scatter(
+    x=red.iloc[:, 0],
+    y=red.iloc[:, 1],
+    s=256,
+    c=colormap[red["cluster"]],
+    alpha=0.4
 )
 
 # %% Plot clusters and variable projections using matplotlib

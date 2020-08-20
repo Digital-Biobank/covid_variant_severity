@@ -7,29 +7,28 @@ from sklearn.metrics import classification_report, plot_roc_curve, confusion_mat
     f1_score
 
 # %% Read in combined clusters, PCA transformed, and mortality data
-mort = pd.read_parquet(
+df = pd.read_parquet(
     "02_77142-vcf_"
     "2-component-pca-transformed_"
-    "mortality_"
-    "3-cluster-kmeans_random"
-    ".parquet"
+    "3-cluster-kmeans_"
+    "outcomes_random.parquet"
 )
 
 # %% Convert cluster data into indicator (dummy) variables
-dummy_df = pd.get_dummies(mort, columns=["cluster"])
+dummy_df = pd.get_dummies(df, columns=["cluster"])
 
 # %% Fit base model with statsmodels
-base_mod = smf.logit(formula="y ~ covv_patient_age + gender", data=dummy_df)
+base_mod = smf.logit(formula="is_red ~ covv_patient_age + gender", data=dummy_df)
 base_fit = base_mod.fit()
 base_fit.summary()
 
 # %% Fit cluster model with statsmodels
-clus_mod = smf.logit(formula="y ~ covv_patient_age + gender + cluster_0 + cluster_1", data=dummy_df)
+clus_mod = smf.logit(formula="is_red ~ covv_patient_age + gender + cluster_0 + cluster_1", data=dummy_df)
 clus_fit = clus_mod.fit()
 clus_fit.summary()
 
 # %% Fit principal component model with statsmodels
-comp_mod = smf.logit(formula="y ~ covv_patient_age + gender + PC1 + PC2", data=dummy_df)
+comp_mod = smf.logit(formula="is_red ~ covv_patient_age + gender + PC1 + PC2", data=dummy_df)
 comp_fit = comp_mod.fit()
 comp_fit.summary()
 
@@ -39,11 +38,11 @@ Xy = dummy_df[[
     "gender",
     "cluster_0",
     "cluster_1",
-    "y"
+    "is_red"
 ]].dropna()
 
-X = Xy.drop("y", axis=1)
-y = Xy["y"]
+X = Xy.drop("is_red", axis=1)
+y = Xy["is_red"]
 
 # %% Fit base model with scikit-learn
 base_lr = LogisticRegression(penalty='none')
