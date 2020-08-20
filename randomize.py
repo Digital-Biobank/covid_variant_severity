@@ -1,7 +1,7 @@
 import pandas as pd
 
 # %% Read in data random rows
-df = pd.read_parquet("00_77142-vcf_wide.parquet").fillna(0)
+df = pd.read_parquet("00_77142-vcf_wide.parquet")
 
 # %% Randomize rows
 random_rows = df.sample(
@@ -19,4 +19,3 @@ random_cols = random_rows.sample(
 
 # %% Save randomized data
 random_cols.to_parquet("00_77142-vcf_wide_random.parquet")
-random_cols.to_csv("00_77142-vcf_wide_random.csv")

@@ -7,7 +7,7 @@ import joblib
 from sklearn.cluster import KMeans
 
 # %% Read in PCA transformed data
-df = pd.read_parquet("01_77142-vcf_2-component-pca-transformed.parquet")
+df = pd.read_parquet("01_77142-vcf_2-component-pca-transformed_random.parquet")
 
 # %% Read in outcome data and create label and patient ID (pid) columns
 all_outcomes = pd.read_csv("200818_emm_IDsandstatus_all_plus.csv")
@@ -36,7 +36,9 @@ df = df.join(all_outcomes)
 df = df.dropna(subset=["all_labels"])
 
 # %% Save combined PCA transformed and outcome data
-df.to_parquet("02_77142-vcf_2-component-pca-transformed_outcomes.parquet")
+df.to_parquet(
+    "02_77142-vcf_2-component-pca-transformed_outcomes_random.parquet"
+)
 
 # %% Instantiate K-means model with three clusters
 km = KMeans(n_clusters=3)
@@ -52,7 +54,7 @@ df.to_parquet(
     "02_77142-vcf_"
     "2-component-pca-transformed_"
     "3-cluster-kmeans_"
-    "outcomes"
+    "outcomes_random"
     ".parquet"
 )
 
@@ -72,7 +74,7 @@ mort.to_parquet(
     "02_77142-vcf_"
     "2-component-pca-transformed_"
     "mortality_"
-    "3-cluster-kmeans"
+    "3-cluster-kmeans_random"
     ".parquet"
 )
 
@@ -106,7 +108,7 @@ plt.scatter(
 
 # %% Read in top variants for variable projection plotting using matplotlib
 top_vars = pd.read_csv(
-    "01_77142-vcf_2-component-pca-components_top-variants_long.csv"
+    "01_77142-vcf_2-component-pca-components_top-variants_long_random.csv"
 )
 
 # %% Plot clusters and variable projections using matplotlib

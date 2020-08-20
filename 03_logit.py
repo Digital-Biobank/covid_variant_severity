@@ -11,7 +11,7 @@ mort = pd.read_parquet(
     "02_77142-vcf_"
     "2-component-pca-transformed_"
     "mortality_"
-    "3-cluster-kmeans"
+    "3-cluster-kmeans_random"
     ".parquet"
 )
 
@@ -60,7 +60,7 @@ plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', label='Chance', alpha=
 plt.savefig(
     "02_77142-vcf_2-component-pca-transformed_"
     "mortality_3-cluster-kmeans_"
-    "logisitic-regression_roc-curve.png"
+    "logisitic-regression_roc-curve_random.png"
 )
 plt.show()
 
