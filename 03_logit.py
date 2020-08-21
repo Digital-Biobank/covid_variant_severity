@@ -42,6 +42,8 @@ Xy = dummy_df[[
     "is_red"
 ]].dropna()
 
+Xy.to_parquet("03_77142-vcf_2-component-pca_3-cluster-kmeans_outcomes_dropna.pickle")
+
 X = Xy.drop("is_red", axis=1)
 y = Xy["is_red"]
 
@@ -54,16 +56,6 @@ clus_lr = LogisticRegression(penalty='none')
 clus_lr.fit(X, y)
 joblib.dump(clus_lr, "03_77142-vcf_2-component-pca_3-cluster-kmeans_logistic-regression-model.pickle")
 
-# %% Plot ROC curves
-plot_roc_curve(base_lr, X[["covv_patient_age", "gender"]], y)
-plot_roc_curve(clus_lr, X, y)
-plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', label='Chance', alpha=.8)
-plt.savefig(
-    "02_77142-vcf_2-component-pca-transformed_"
-    "mortality_3-cluster-kmeans_"
-    "logisitic-regression_roc-curve.png"
-)
-plt.show()
 
 # %% Use sklearn logisitic regression model for prediction
 pred = clus_lr.predict(X)
