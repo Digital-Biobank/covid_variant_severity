@@ -25,7 +25,7 @@ base_fit.summary()
 # %% Fit cluster model with statsmodels
 clus_mod = smf.logit(formula="is_red ~ covv_patient_age + gender + cluster_0 + cluster_1", data=dummy_df)
 clus_fit = clus_mod.fit()
-clus_fit.summary()
+print(clus_fit.summary())
 
 # %% Fit principal component model with statsmodels
 comp_mod = smf.logit(formula="is_red ~ covv_patient_age + gender + PC1 + PC2", data=dummy_df)
