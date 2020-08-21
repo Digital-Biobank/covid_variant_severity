@@ -1,4 +1,5 @@
 # %% Imports
+import joblib
 import pandas as pd
 import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
@@ -11,7 +12,7 @@ df = pd.read_parquet(
     "02_77142-vcf_"
     "2-component-pca-transformed_"
     "3-cluster-kmeans_"
-    "outcomes_random.parquet"
+    "outcomes.parquet"
 )
 
 # %% Convert cluster data into indicator (dummy) variables
@@ -51,6 +52,7 @@ base_lr.fit(X[["covv_patient_age", "gender"]], y)
 # %% Fit cluster model with scikit-learn
 clus_lr = LogisticRegression(penalty='none')
 clus_lr.fit(X, y)
+joblib.dump(clus_lr, "03_77142-vcf_2-component-pca_3-cluster-kmeans_logistic-regression-model.pickle")
 
 # %% Plot ROC curves
 plot_roc_curve(base_lr, X[["covv_patient_age", "gender"]], y)
@@ -59,7 +61,7 @@ plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', label='Chance', alpha=
 plt.savefig(
     "02_77142-vcf_2-component-pca-transformed_"
     "mortality_3-cluster-kmeans_"
-    "logisitic-regression_roc-curve_random.png"
+    "logisitic-regression_roc-curve.png"
 )
 plt.show()
 

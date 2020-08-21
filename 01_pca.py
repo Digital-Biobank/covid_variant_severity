@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.decomposition import PCA
 
 # %% Read in VCF wide data
-df = pd.read_parquet("00_77142-vcf_wide_random.parquet").fillna(0)
+df = pd.read_parquet("00_77142-vcf_wide.parquet").fillna(0)
 
 # %% Instantiate PCA model
 pca = PCA(n_components=2, svd_solver="randomized", random_state=42)
@@ -19,11 +19,11 @@ transformed = pd.DataFrame(
 )
 
 # %% Save transformed data for plotting
-transformed.to_csv("01_77142-vcf_2-component-pca-transformed_random.csv")
-transformed.to_parquet("01_77142-vcf_2-component-pca-transformed_random.parquet")
+transformed.to_csv("01_77142-vcf_2-component-pca-transformed.csv")
+transformed.to_parquet("01_77142-vcf_2-component-pca-transformed.parquet")
 
 # %% Save PCA model
-joblib.dump(pca, "01_77142-vcf_2-component-pca-model_random.pickle.gz")
+joblib.dump(pca, "01_77142-vcf_2-component-pca-model.pickle.gz")
 
 # %% Put PCA components (loadings) into a dataframe
 pca_df = pd.DataFrame({
@@ -34,8 +34,8 @@ pca_df = pd.DataFrame({
 )
 
 # %% Save PCA components (loadings)
-pca_df.to_csv("01_77142-vcf_2-component-pca-components_random.csv")
-pca_df.to_parquet("01_77142-vcf_2-component-pca-components_random.parquet")
+pca_df.to_csv("01_77142-vcf_2-component-pca-components.csv")
+pca_df.to_parquet("01_77142-vcf_2-component-pca-components.parquet")
 
 # %% List variants with highest PCA component correlations
 variants = {
@@ -68,8 +68,8 @@ pca_plot_data = pca_df.loc[variants]
 
 # %% Save top variant PCA component correlations
 pca_plot_data.T.to_csv(
-    "01_77142-vcf_2-component-pca-components_top-variants_wide_random.csv"
+    "01_77142-vcf_2-component-pca-components_top-variants_wide.csv"
 )
 pca_plot_data.to_csv(
-    "01_77142-vcf_2-component-pca-components_top-variants_long_random.csv"
+    "01_77142-vcf_2-component-pca-components_top-variants_long.csv"
 )

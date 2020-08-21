@@ -6,7 +6,7 @@ import seaborn as sns
 from sklearn.cluster import KMeans
 
 # %% Read in PCA transformed data
-df = pd.read_parquet("01_77142-vcf_2-component-pca-transformed_random.parquet")
+df = pd.read_parquet("01_77142-vcf_2-component-pca-transformed.parquet")
 
 # %% Read in outcome data and create label and patient ID (pid) columns
 all_outcomes = pd.read_csv("200818_emm_IDsandstatus_all_plus.csv")
@@ -55,7 +55,7 @@ df = df.dropna(subset=["is_red"])
 
 # %% Save combined PCA transformed and outcome data
 df.to_parquet(
-    "02_77142-vcf_2-component-pca-transformed_outcomes_random.parquet"
+    "02_77142-vcf_2-component-pca-transformed_outcomes.parquet"
 )
 
 # %% Instantiate K-means model with three clusters
@@ -72,7 +72,7 @@ df.to_parquet(
     "02_77142-vcf_"
     "2-component-pca-transformed_"
     "3-cluster-kmeans_"
-    "outcomes_random"
+    "outcomes"
     ".parquet"
 )
 
@@ -102,7 +102,7 @@ plt.show()
 
 # %% Read in top variants for variable projection plotting using matplotlib
 top_vars = pd.read_csv(
-    "01_77142-vcf_2-component-pca-components_top-variants_long_random.csv"
+    "01_77142-vcf_2-component-pca-components_top-variants_long.csv"
 )
 
 # %% Plot clusters and variable projections using matplotlib
