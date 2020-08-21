@@ -129,13 +129,13 @@ plt.quiver(
 )
 
 # %% Add unit circle to show perfect correlation between variants and components
-circle = plt.Circle(
-    (0, 0),
-    1,
-    facecolor='none',
-    edgecolor='b'
-)
-plt.gca().add_artist(circle)
+# circle = plt.Circle(
+#     (0, 0),
+#     1,
+#     facecolor='none',
+#     edgecolor='b'
+# )
+# plt.gca().add_artist(circle)
 
 # %% Save plot
 plt.savefig("02_77142-vcf_2-component-pca-_3-cluster-kmeans.png")
