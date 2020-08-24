@@ -1,8 +1,7 @@
 # %% Imports
 import joblib
 import pandas as pd
-import statsmodels.formula.api as smf
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import classification_report, confusion_matrix, recall_score, precision_score, \
     f1_score
 
@@ -32,9 +31,9 @@ X = Xy.drop("is_red", axis=1)
 y = Xy["is_red"]
 
 # %% Fit cluster model with scikit-learn
-clus_lr = KNeighborsClassifier()
+clus_lr = DecisionTreeClassifier()
 clus_lr.fit(X, y)
-joblib.dump(clus_lr, "03_77142-vcf_2-component-pca_3-cluster-kmeans_knn_random.pickle")
+joblib.dump(clus_lr, "03_77142-vcf_2-component-pca_3-cluster-kmeans_dt.pickle")
 
 
 # %% Use sklearn logisitic regression model for prediction
