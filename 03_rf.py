@@ -1,7 +1,7 @@
 # %% Imports
 import joblib
 import pandas as pd
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix, recall_score, precision_score, \
     f1_score
 
@@ -31,7 +31,7 @@ X = Xy.drop("is_red", axis=1)
 y = Xy["is_red"]
 
 # %% Fit cluster model with scikit-learn
-clf = DecisionTreeClassifier()
+clf = RandomForestClassifier()
 clf.fit(X, y)
 joblib.dump(clf, "03_77142-vcf_2-component-pca_3-cluster-kmeans_rf.pickle")
 
