@@ -10,7 +10,7 @@ df = pd.read_parquet(
     "02_77142-vcf_"
     "2-component-pca-transformed_"
     "3-cluster-kmeans_"
-    "outcomes.parquet"
+    "outcomes_random.parquet"
 )
 
 # %% Convert cluster data into indicator (dummy) variables
@@ -25,7 +25,7 @@ Xy = dummy_df[[
     "is_red"
 ]].dropna()
 
-Xy.to_parquet("03_77142-vcf_2-component-pca_3-cluster-kmeans_outcomes_dropna.pickle")
+Xy.to_parquet("03_77142-vcf_2-component-pca_3-cluster-kmeans_outcomes_dropna_random.pickle")
 
 X = Xy.drop("is_red", axis=1)
 y = Xy["is_red"]
@@ -33,7 +33,7 @@ y = Xy["is_red"]
 # %% Fit cluster model with scikit-learn
 clus_lr = DecisionTreeClassifier()
 clus_lr.fit(X, y)
-joblib.dump(clus_lr, "03_77142-vcf_2-component-pca_3-cluster-kmeans_dt.pickle")
+joblib.dump(clus_lr, "03_77142-vcf_2-component-pca_3-cluster-kmeans_dt_random.pickle")
 
 
 # %% Use sklearn logisitic regression model for prediction

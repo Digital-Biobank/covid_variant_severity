@@ -34,7 +34,7 @@ y = Xy["is_red"]
 # %% Fit cluster model with scikit-learn
 clus_lr = KNeighborsClassifier()
 clus_lr.fit(X, y)
-joblib.dump(clus_lr, "03_77142-vcf_2-component-pca_3-cluster-kmeans_knn_random.pickle")
+joblib.dump(clus_lr, "03_77142-vcf_2-component-pca_3-cluster-kmeans_knn.pickle")
 
 
 # %% Use sklearn logisitic regression model for prediction
