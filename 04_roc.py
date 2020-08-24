@@ -27,3 +27,24 @@ plt.savefig(
     "logisitic-regression_roc-curve.png"
 )
 plt.show()
+
+clus_knn_master = joblib.load("03_77142-vcf_2-component-pca_3-cluster-kmeans_knn-regression-model.pickle")
+clus_knn_random = joblib.load("03_77142-vcf_2-component-pca_3-cluster-kmeans_logistic-regression-model_random.pickle")
+
+clfs = [clus_knn_master, clus_knn_random]
+labs = ["Logisitic Regression", "Logisitic Regression (random)"]
+for lab, clf in zip(labs, clfs):
+    pred = clf.predict_proba(x)[::, 1]
+    fpr, tpr, _ = roc_curve(y, pred)
+    auc = roc_auc_score(y, pred)
+    plt.plot(fpr, tpr, label=f"{lab}, AUC={auc:.3f}")
+    plt.legend(loc=4)
+plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', label='chance', alpha=.8)
+plt.xlabel("False positive rate")
+plt.ylabel("True positive rate")
+plt.savefig(
+    "02_77142-vcf_2-component-pca-transformed_"
+    "mortality_3-cluster-kmeans_"
+    "logisitic-regression_roc-curve.png"
+)
+plt.show()

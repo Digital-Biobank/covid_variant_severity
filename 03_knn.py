@@ -2,8 +2,8 @@
 import joblib
 import pandas as pd
 import statsmodels.formula.api as smf
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, plot_roc_curve, confusion_matrix, recall_score, precision_score, \
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import classification_report, confusion_matrix, recall_score, precision_score, \
     f1_score
 
 # %% Read in combined clusters, PCA transformed, and mortality data
@@ -16,21 +16,6 @@ df = pd.read_parquet(
 
 # %% Convert cluster data into indicator (dummy) variables
 dummy_df = pd.get_dummies(df, columns=["cluster"])
-
-# %% Fit base model with statsmodels
-base_mod = smf.logit(formula="is_red ~ covv_patient_age + gender", data=dummy_df)
-base_fit = base_mod.fit()
-base_fit.summary()
-
-# %% Fit cluster model with statsmodels
-clus_mod = smf.logit(formula="is_red ~ covv_patient_age + gender + cluster_0 + cluster_1", data=dummy_df)
-clus_fit = clus_mod.fit()
-print(clus_fit.summary())
-
-# %% Fit principal component model with statsmodels
-comp_mod = smf.logit(formula="is_red ~ covv_patient_age + gender + PC1 + PC2", data=dummy_df)
-comp_fit = comp_mod.fit()
-comp_fit.summary()
 
 # %% Prepare data for scikit-learn
 Xy = dummy_df[[
@@ -46,14 +31,10 @@ Xy.to_parquet("03_77142-vcf_2-component-pca_3-cluster-kmeans_outcomes_dropna.pic
 X = Xy.drop("is_red", axis=1)
 y = Xy["is_red"]
 
-# %% Fit base model with scikit-learn
-base_lr = LogisticRegression(penalty='none')
-base_lr.fit(X[["covv_patient_age", "gender"]], y)
-
 # %% Fit cluster model with scikit-learn
-clus_lr = LogisticRegression(penalty='none')
+clus_lr = KNeighborsClassifier()
 clus_lr.fit(X, y)
-joblib.dump(clus_lr, "03_77142-vcf_2-component-pca_3-cluster-kmeans_logistic-regression-model.pickle")
+joblib.dump(clus_lr, "03_77142-vcf_2-component-pca_3-cluster-kmeans_knn.pickle")
 
 
 # %% Use sklearn logisitic regression model for prediction

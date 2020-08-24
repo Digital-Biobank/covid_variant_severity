@@ -90,15 +90,15 @@ relative_df.columns = ["red", "green", "blue"]
 relative_df[["red", "green", "blue"]].divide(relative_df["green"], axis=0)
 
 # %% Plot clusters using seaborn
-sns.scatterplot(
-    x="PC1",
-    y="PC2",
-    alpha=0.2,
-    s=256,
-    hue="cluster",
-    data=dead
-)
-plt.show()
+# sns.scatterplot(
+#     x="PC1",
+#     y="PC2",
+#     alpha=0.2,
+#     s=256,
+#     hue="cluster",
+#     data=dead
+# )
+# plt.show()
 
 # %% Read in top variants for variable projection plotting using matplotlib
 top_vars = pd.read_csv(
@@ -106,7 +106,7 @@ top_vars = pd.read_csv(
 )
 
 # %% Plot clusters and variable projections using matplotlib
-colormap = np.array(['r', 'g', 'b'])
+colormap = np.array(['b', 'g', 'r'])
 plt.scatter(
     x=red.iloc[:, 0],
     y=red.iloc[:, 1],
@@ -138,6 +138,7 @@ plt.quiver(
 # plt.gca().add_artist(circle)
 
 # %% Save plot
+plt.tight_layout()
 plt.savefig("02_77142-vcf_2-component-pca-_3-cluster-kmeans.png")
 
 # %% Show plot
