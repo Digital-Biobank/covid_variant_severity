@@ -29,7 +29,7 @@ plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', label='Chance', alpha=
 plt.savefig(
     "02_77142-vcf_2-component-pca-transformed_"
     "mortality_3-cluster-kmeans_"
-    "logisitic-regression_roc-curve.png"
+    "logistic-regression_roc-curve.png"
 )
 plt.show()
 
