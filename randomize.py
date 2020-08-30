@@ -1,7 +1,7 @@
 import pandas as pd
 
 # %% Read in data random rows
-df = pd.read_parquet("00_77142-vcf_wide.parquet")
+df = pd.read_parquet("data/00_77142-vcf_wide.parquet")
 
 # %% Randomize rows
 random_rows = df.sample(

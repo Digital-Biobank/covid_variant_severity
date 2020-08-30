@@ -16,8 +16,9 @@ df = pd.concat([
 ])
 
 # %% Save all vcf files with patient ID (pid) column in long format
-df.to_csv("00_77142-vcf_long.csv")
-df.to_parquet("00_77142-vcf_long.parquet")
+df.to_feather("data/00_77142-vcf_long.feather")
+df.to_parquet("data/00_77142-vcf_long.parquet")
+df.to_pickle("data/00_77142-vcf_long.pickle")
 
 # %% Combine REF, POS, ALT columns into ref_pos_alt (variant name) column
 df = df.assign(
@@ -34,5 +35,6 @@ df_wide = df.pivot(
 )
 
 # %% Save all vcf files with patient ID (pid) column in wide format
-df_wide.to_csv("00_77142-vcf_wide.csv")
-df_wide.to_parquet("00_77142-vcf_wide.parquet")
+df_wide.reset_index().to_feather("data/00_77142-vcf_wide.feather")
+df_wide.to_parquet("data/00_77142-vcf_wide.parquet")
+df_wide.to_pickle("data/00_77142-vcf_wide.pickle")

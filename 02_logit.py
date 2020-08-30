@@ -1,70 +1,87 @@
 # %% Imports
 import joblib
+import matplotlib.pyplot as plt
 import pandas as pd
-import statsmodels.formula.api as smf
+import statsmodels as sm
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, plot_roc_curve, confusion_matrix, recall_score, precision_score, \
+from sklearn.metrics import classification_report, confusion_matrix, recall_score, precision_score, \
     f1_score
+from sklearn.metrics import roc_curve, roc_auc_score
 
 # %% Read in combined clusters, PCA transformed, and mortality data
-df = pd.read_parquet(
-    "02_77142-vcf_"
-    "2-component-pca-transformed_"
-    "3-cluster-kmeans_"
-    "outcomes.parquet"
-)
-
-# %% Convert cluster data into indicator (dummy) variables
-dummy_df = pd.get_dummies(df, columns=["cluster"])
-
-# %% Fit base model with statsmodels
-base_mod = smf.logit(formula="is_red ~ covv_patient_age + gender", data=dummy_df)
-base_fit = base_mod.fit()
-base_fit.summary()
-
-# %% Fit cluster model with statsmodels
-clus_mod = smf.logit(formula="is_red ~ covv_patient_age + gender + cluster_0 + cluster_1", data=dummy_df)
-clus_fit = clus_mod.fit()
-print(clus_fit.summary())
-
-# %% Fit principal component model with statsmodels
-comp_mod = smf.logit(formula="is_red ~ covv_patient_age + gender + PC1 + PC2", data=dummy_df)
-comp_fit = comp_mod.fit()
-comp_fit.summary()
+df = pd.read_csv("data/01_77142-vcf_wide_mutations_red.csv")
 
 # %% Prepare data for scikit-learn
-Xy = dummy_df[[
-    "covv_patient_age",
+X = df[[
+    "is_red",
     "gender",
-    "cluster_0",
-    "cluster_1",
-    "is_red"
+    "clade",
+    "cat_region",
+    "covv_patient_age",
+    "mutation_count",
 ]].dropna()
+y = X["is_red"]
+X = X.drop("is_red", axis=1)
 
-Xy.to_parquet("03_77142-vcf_2-component-pca_3-cluster-kmeans_outcomes_dropna.pickle")
+# %% Convert categorical data into indicator (dummy) variables
+X = pd.get_dummies(X, columns=["cat_region", "clade"], drop_first=True)
 
-X = Xy.drop("is_red", axis=1)
-y = Xy["is_red"]
+# %% Fit base model with statsmodels
+mod = sm.discrete.discrete_model.Logit(y, X)
+fit = mod.fit()
+fit.summary()
+joblib.dump(mod, "02_77142-vcf_statsmodels-logistic-regression-model.pickle")
+fit.params
+# %% Fit cluster model with statsmodels
+
+# %% Fit principal component model with statsmodels
 
 # %% Fit base model with scikit-learn
-base_lr = LogisticRegression(penalty='none')
-base_lr.fit(X[["covv_patient_age", "gender"]], y)
+prefix = "02_77142-vcf_logistic-regression-model"
+
+suffixes = [
+    "age",
+    "age-gender",
+    "age-gender-mutation",
+    "age-gender-mutation-clade",
+    "age-gender-mutation-clade-region",
+]
+
+X1 = X[["covv_patient_age"]]
+X2 = X[["covv_patient_age", "gender"]]
+X3 = X[["covv_patient_age", "gender", "mutation_count"]]
+X4 = X.loc[:, X.columns.str.contains("age|gen|mut|cla")]
+
+for x, s in zip([X1, X2, X3, X4, X], suffixes):
+    logreg = LogisticRegression(penalty='none', max_iter=1e4)
+    logreg.fit(x, y)
+    joblib.dump(logreg, prefix + s + ".pickle")
+    pred = logreg.predict(x)
+    print(classification_report(y, pred))
+    print(classification_report(y, pred))
+    print(confusion_matrix(y, pred))
+    precision_score(y, pred)
+    recall_score(y, pred)
+    f1_score(y, pred)
+    pred = logreg.predict_proba(x)[::, 1]
+    fpr, tpr, _ = roc_curve(y, pred)
+    auc = roc_auc_score(y, pred)
+    plt.plot(fpr, tpr, label=f"{s.replace('-', ', ').title()}, AUC={auc:.2f}")
+    plt.legend(loc=4)
+    plt.xlabel("False positive rate")
+    plt.ylabel("True positive rate")
+
+plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
+plt.tight_layout()
+plt.savefig("plots/" + prefix + suffixes[-1] + ".png")
+plt.show()
 
 # %% Fit cluster model with scikit-learn
-clus_lr = LogisticRegression(penalty='none')
-clus_lr.fit(X, y)
-joblib.dump(clus_lr, "03_77142-vcf_2-component-pca_3-cluster-kmeans_logistic-regression-model.pickle")
-
 
 # %% Use sklearn logisitic regression model for prediction
-pred = clus_lr.predict(X)
+pred = logreg.predict(X)
 
 # %% Show model metrics
-print(classification_report(y, pred))
-print(confusion_matrix(y, pred))
-precision_score(y, pred)
-recall_score(y, pred)
-f1_score(y, pred)
 
 # %% Manually calculate model metrics (work in progress)
 true_pred = pd.DataFrame({"actual": y, "predicted": pred}).sort_values(["predicted"])

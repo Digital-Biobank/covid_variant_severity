@@ -11,6 +11,9 @@ df = pd.read_parquet("03_77142-vcf_2-component-pca_3-cluster-kmeans_outcomes_dro
 df_random = pd.read_parquet("03_77142-vcf_2-component-pca_3-cluster-kmeans_outcomes_dropna_random.pickle")
 lr_master = joblib.load("03_77142-vcf_2-component-pca_3-cluster-kmeans_logistic-regression-model.pickle")
 lr_random = joblib.load("03_77142-vcf_2-component-pca_3-cluster-kmeans_logistic-regression-model_random.pickle")
+logreg = joblib.load("02_77142-vcf_sklearn-logistic-regression-model.pickle")
+plot_roc_curve(logreg, X=X, y=y)
+plt.show()
 
 cv = StratifiedKFold(n_splits=5)
 

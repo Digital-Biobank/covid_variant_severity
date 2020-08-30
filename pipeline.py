@@ -3,8 +3,8 @@ from pathlib import Path
 from make import run_script_if_needed
 
 targets = (
-    Path("00_77142-vcf_wide.parquet"),
-    Path("02_77142-vcf_2-component-pca-transformed_"
+    Path("data/00_77142-vcf_wide.parquet"),
+    Path("01_77142-vcf_2-component-pca-transformed_"
          "outcomes_3-cluster-kmeans.parquet"),
     Path("02_77142-vcf_2-component-pca-transformed_"
          "outcomes_3-cluster-kmeans_"
@@ -13,7 +13,7 @@ targets = (
 scripts = (
     Path("00_wide.py"),
     Path("01_pca-kmeans.py"),
-    Path("03_logit.py"),
+    Path("02_logit.py"),
 )
 
 for t, s in zip(targets, scripts):

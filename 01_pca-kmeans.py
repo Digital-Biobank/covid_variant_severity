@@ -1,13 +1,13 @@
 # %% Imports
 import joblib
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
 
 # %% Read in VCF wide data
-df = pd.read_parquet("00_77142-vcf_wide_random.parquet").fillna(0)
+df = pd.read_parquet("data/00_77142-vcf_wide.parquet").fillna(0)
 
 # %% Instantiate PCA model
 pca = PCA(n_components=2, svd_solver="randomized", random_state=42)
@@ -22,23 +22,31 @@ transformed = pd.DataFrame(
 )
 
 # %% Save transformed data for plotting
-transformed.to_csv("01_77142-vcf_2-component-pca-transformed_random.csv")
-transformed.to_parquet("01_77142-vcf_2-component-pca-transformed_random.parquet")
+transformed.reset_index().to_feather(
+    "data/01_77142-vcf_2-component-pca-transformed.feather"
+)
+transformed.to_parquet(
+    "data/01_77142-vcf_2-component-pca-transformed.parquet"
+)
 
 # %% Save PCA model
-joblib.dump(pca, "01_77142-vcf_2-component-pca-model_random.pickle.gz")
+joblib.dump(pca, "models/01_77142-vcf_2-component-pca-model.pickle.gz")
 
 # %% Put PCA components (loadings) into a dataframe
 pca_df = pd.DataFrame({
     "PC1": pca.components_[0],
     "PC2": pca.components_[1]
-},
+    },
     index=df.columns
 )
 
 # %% Save PCA components (loadings)
-pca_df.to_csv("01_77142-vcf_2-component-pca-components_random.csv")
-pca_df.to_parquet("01_77142-vcf_2-component-pca-components_random.parquet")
+pca_df.reset_index().to_feather(
+    "data/01_77142-vcf_2-component-pca-components.feather"
+)
+pca_df.to_parquet(
+    "data/01_77142-vcf_2-component-pca-components.parquet"
+)
 
 # %% List variants with highest PCA component correlations
 variants = {
@@ -66,22 +74,19 @@ variants = {
     "A23403G",
 }
 
-# %% Filter out other variants
+# %% Filter data other variants
 pca_plot_data = pca_df.loc[variants]
 
 # %% Save top variant PCA component correlations
 pca_plot_data.T.to_csv(
-    "01_77142-vcf_2-component-pca-components_top-variants_wide_random.csv"
+    "data/01_77142-vcf_2-component-pca-components_top-variants_wide.csv"
 )
 pca_plot_data.to_csv(
-    "01_77142-vcf_2-component-pca-components_top-variants_long_random.csv"
+    "data/01_77142-vcf_2-component-pca-components_top-variants_long.csv"
 )
 
-# %% Read in PCA transformed data
-df = pd.read_parquet("01_77142-vcf_2-component-pca-transformed.parquet")
-
 # %% Read in outcome data and create label and patient ID (pid) columns
-all_outcomes = pd.read_csv("200818_emm_IDsandstatus_all_plus.csv")
+all_outcomes = pd.read_csv("data/200818_emm_IDsandstatus_all_plus.csv")
 all_outcomes = all_outcomes.assign(
     all_labels=all_outcomes.covv_patient_status.map(
         {
@@ -120,14 +125,17 @@ all_outcomes = all_outcomes.assign(
 ).set_index("pid")
 
 # %% Join PCA transformed data with outcome data by patient ID (pid)
-df = df.join(all_outcomes)
+df = transformed.join(all_outcomes)
 
 # %% Drop rows without one of the labels in all_labels
 df = df.dropna(subset=["is_red"])
 
 # %% Save combined PCA transformed and outcome data
+df.reset_index().to_feather(
+    "data/02_77142-vcf_2-component-pca-transformed_outcomes.parquet"
+)
 df.to_parquet(
-    "02_77142-vcf_2-component-pca-transformed_outcomes.parquet"
+    "data/02_77142-vcf_2-component-pca-transformed_outcomes.parquet"
 )
 
 # %% Instantiate K-means model with three clusters
@@ -141,11 +149,8 @@ df = df.assign(cluster=km.labels_)
 
 # %% Save combined clusters, PCA transformed, and outcome data
 df.to_parquet(
-    "02_77142-vcf_"
-    "2-component-pca-transformed_"
-    "3-cluster-kmeans_"
-    "outcomes"
-    ".parquet"
+    "data/02_77142-vcf_2-component-pca-transformed_"
+    "3-cluster-kmeans_outcomes.parquet"
 )
 
 # %% Drop rows without one of the labels in is_red
@@ -174,7 +179,7 @@ relative_df[["red", "green", "blue"]].divide(relative_df["green"], axis=0)
 
 # %% Read in top variants for variable projection plotting using matplotlib
 top_vars = pd.read_csv(
-    "01_77142-vcf_2-component-pca-components_top-variants_long.csv"
+    "data/01_77142-vcf_2-component-pca-components_top-variants_long.csv"
 )
 
 # %% Plot clusters and variable projections using matplotlib
@@ -211,7 +216,7 @@ plt.quiver(
 
 # %% Save plot
 plt.tight_layout()
-plt.savefig("02_77142-vcf_2-component-pca-_3-cluster-kmeans.png")
+plt.savefig("plots/02_77142-vcf_2-component-pca-_3-cluster-kmeans.png")
 
 # %% Show plot
 plt.show()
