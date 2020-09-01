@@ -12,12 +12,15 @@ df = pd.read_parquet("data/00_77142-vcf_wide.parquet").fillna(0)
 # %% Instantiate AggClust model
 ac = AgglomerativeClustering()
 
+clusters = ac.fit_predict(df)
+
 # %% Fit PCA model and create transformed data for plotting
-df = df.assign(cluster=ac.fit_predict(df))
 
 # %% Save hclust model
-joblib.dump(ac, "models/01_77142-vcf_2-component-hclust-model.pickle")
+joblib.dump(ac, "models/01_77142-vcf_2-cluster-hclust-model.pickle")
+joblib.dump(clusters, "models/01_77142-vcf_2-cluster-hclust-clusters.pickle")
 
+df = df.assign(cluster=clusters)
 # %% Save transformed data for plotting
 df.reset_index().to_feather(
     "data/01_77142-vcf_2-component-hclust-clusters.feather"
