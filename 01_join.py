@@ -4,14 +4,6 @@ import matplotlib.pyplot as plt
 # %% Read in VCF wide data
 df = pd.read_parquet("data/00_77142-vcf_wide.parquet")
 
-# %% Calculate variant frequencies
-# variants = df.sum().rename("variant_count")
-# variants.to_csv("data/01_77142-vcf_wide_variants.csv")
-
-# %% Calculate total mutations per patient
-# mutations = df.sum(axis=1).rename("mutation_count")
-# mutations.to_csv("data/01_77142-vcf_wide_mutations.csv")
-
 # %% Read in outcomes data
 df2 = pd.read_csv("data/2020-09-01all_cleaned_GISAID0901pull.csv", index_col=0)
 df2 = df2.assign(
@@ -114,7 +106,7 @@ variants_by_red = df.drop([
     "clade",
     "covv_clade"
     ], axis=1).groupby("is_red").sum()
-variants_by_red.index =  ["Green", "Red"]
+variants_by_red.index = ["Green", "Red"]
 variants_by_red.assign(
     sum=variants_by_red.sum(axis=1)
     ).sort_values(by="sum").drop(
