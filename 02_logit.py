@@ -12,28 +12,16 @@ from sklearn.metrics import classification_report, confusion_matrix, recall_scor
 from sklearn.metrics import roc_curve, roc_auc_score, accuracy_score
 from sklearn.model_selection import train_test_split
 
-# %% Read in combined clusters, PCA transformed, and mortality data
-df = pd.read_parquet(
-    "data/02_77142-vcf_9-component-pca-transformed_"
-    "3-cluster-kmeans.parquet",
-)
-df = df[[
-    "is_red",
-    "covv_patient_age",
-    "gender",
-    "clade",
-    "cat_region",
-    "cluster"
-]].dropna().astype({
-    "is_red": int,
-    "gender": int,
-    "clade": int,
-    "cat_region": int
-})
+# %% Read in cleaned data
+df = pd.read_parquet("data/01_77142-vcf_wide_join.parquet")
+
+# %% Combined cleaned and variant data
+X = df[["covv_patient_age", "gender", "cat_region", "clade", "is_red"]]
 
 # %% Convert categorical data into indicator (dummy) variables
-df = pd.get_dummies(df, columns=["cat_region", "clade", "cluster"], drop_first=True)
-
+X = pd.get_dummies(X, columns=["cat_region", "clade"], drop_first=True)
+X.columns
+# %% Prepare scikit-learn data
 X = df.dropna()
 y = X["is_red"]
 X = X.drop(["is_red"], axis=1)
@@ -43,11 +31,72 @@ X_train, X_test, y_train, y_test = train_test_split(
     test_size=0.33,
     random_state=42
 )
+
+# %% Instantiate, fit, and assess scikit-learn model
 logreg = LogisticRegression(penalty='none', max_iter=1e4)
 logreg.fit(X_train, y_train)
 pred = logreg.predict(X_test)
 roc_auc_score(y_test, pred)
+accuracy_score(y_test, pred)
 
+# %% Plot coefficients
+coefs = pd.DataFrame(logreg.coef_, columns=X.columns).squeeze()
+sorted_coefs = coefs.sort_values()
+sorted_coefs.drop(sorted_coefs.index[15:-15]).plot.barh(legend=False)
+plt.tight_layout()
+plt.title("Top Green/Red Logistic Regression Variables")
+plt.xlabel("Coefficient")
+plt.ylabel("Variant")
+plt.show()
+
+# %% Plot ROC curve
+prefix = "02_77142-vcf_logistic-regression-model"
+
+suffixes = [
+    "age-gender-region-clade-variant",
+    "age-gender-region-clade",
+    "age-gender-region",
+    "age-gender",
+    "age",
+]
+X4 = X.loc[:, X.columns.str.contains("age|gen|reg|clade")]
+X3 = X.loc[:, X.columns.str.contains("age|gen|reg")]
+X2 = X[["covv_patient_age", "gender"]]
+X1 = X[["covv_patient_age"]]
+
+for x, s in zip([X, X4, X3, X2, X1], suffixes):
+    logreg = LogisticRegression(penalty='none', max_iter=1e4)
+    X_train, X_test, y_train, y_test = train_test_split(
+        x,
+        y,
+        test_size=0.33,
+        random_state=42
+    )
+    logreg = LogisticRegression(penalty='none', max_iter=1e4)
+    logreg.fit(X_train, y_train)
+    joblib.dump(logreg, prefix + s + ".pickle")
+    pred = logreg.predict(X_test)
+    roc_auc_score(y_test, pred)
+    accuracy_score(y_test, pred)
+    print(classification_report(y_test, pred))
+    print(classification_report(y_test, pred))
+    print(confusion_matrix(y_test, pred))
+    precision_score(y_test, pred)
+    recall_score(y_test, pred)
+    f1_score(y_test, pred)
+    pred = logreg.predict_proba(x)[::, 1]
+    fpr, tpr, _ = roc_curve(y_test, pred)
+    auc = roc_auc_score(y_test, pred)
+    print(auc)
+    plt.plot(fpr, tpr, label=f"{s.replace('-', ', ').title()}")
+    plt.legend(loc=4)
+    plt.xlabel("False positive rate")
+    plt.ylabel("True positive rate")
+
+plt.savefig("plots/" + prefix + "_" + suffixes[0] + ".png")
+plt.show()
+
+# %% Semi-supervised learning
 # %% Prepare data for scikit-learn
 df = pd.read_parquet("data/02_semi_knn-kernel-label-spreading-dataframe.parquet")
 df = df[[
@@ -92,6 +141,39 @@ accuracy_score(y_test, pred)
 
 logreg = LogisticRegression(penalty='none', max_iter=1e4)
 
+
+cols = [
+    "is_red",
+    "covv_patient_age",
+    "gender",
+    "clade",
+    "cat_region",
+]# + ["PC" + str(i) for i in range(1, 10)]
+cols
+df.columns
+df = df[cols].dropna().astype({
+    "is_red": int,
+    "gender": int,
+    "clade": int,
+    "cat_region": int,
+})
+true_X = df.dropna()
+true_y = true_X["is_red"]
+true_X = true_X.drop(["is_red"], axis=1)
+X_train, X_test, y_train, y_test = train_test_split(
+    true_X,
+    true_y,
+    test_size=0.33,
+    random_state=42
+)
+
+
+logreg = LogisticRegression(penalty='none', max_iter=1e4)
+logreg.fit(X_train, y_train)
+pred = logreg.predict(X_test)
+roc_auc_score(y_test, pred)
+accuracy_score(y_test, pred)
+
 # %% Fit base model with statsmodels
 # mod = sm.discrete.discrete_model.Logit(y, X)
 # fit = mod.fit()
@@ -102,50 +184,7 @@ logreg = LogisticRegression(penalty='none', max_iter=1e4)
 
 # %% Fit principal component model with statsmodels
 
-# %% Fit base model with scikit-learn
-prefix = "02_77142-vcf_logistic-regression-model"
 
-suffixes = [
-    "age-gender-cluster-clade-region",
-    "age-gender-cluster-clade",
-    "age-gender-clade",
-    "age-gender-cluster",
-    "age-gender",
-    "age",
-]
-
-X5 = X.loc[:, X.columns.str.contains("age|gen|clus|cla|reg")]
-X4 = X.loc[:, X.columns.str.contains("age|gen|clus|cla")]
-X3B = X.loc[:, X.columns.str.contains("age|gen|clad")]
-X3A = X.loc[:, X.columns.str.contains("age|gen|clus")]
-X2 = X[["covv_patient_age", "gender"]]
-X1 = X[["covv_patient_age"]]
-
-for x, s in zip([X5, X4, X3B, X3A, X2, X1], suffixes):
-    logreg = LogisticRegression(penalty='none', max_iter=1e4)
-    logreg.fit(x, y)
-    joblib.dump(logreg, prefix + s + ".pickle")
-    pred = logreg.predict(x)
-    print(classification_report(y, pred))
-    print(classification_report(y, pred))
-    print(confusion_matrix(y, pred))
-    precision_score(y, pred)
-    recall_score(y, pred)
-    f1_score(y, pred)
-    pred = logreg.predict_proba(x)[::, 1]
-    fpr, tpr, _ = roc_curve(y, pred)
-    auc = roc_auc_score(y, pred)
-    print(auc)
-    plt.plot(fpr, tpr, label=f"{s.replace('-', ', ').title()}")
-    plt.legend(loc=4)
-    plt.xlabel("False positive rate")
-    plt.ylabel("True positive rate")
-
-plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
-plt.tight_layout()
-plt.savefig("plots/" + prefix + "_" + suffixes[0] + ".png")
-plt.show()
-X.shape
 # %% Fit others model with scikit-learn
 prefix = "02_77142-vcf_"
 
