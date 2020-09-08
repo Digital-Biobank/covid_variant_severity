@@ -10,7 +10,9 @@ from sklearn.cluster import KMeans
 df = pd.read_parquet("data/00_77142-vcf_wide.parquet").fillna(0)
 
 # %% Instantiate PCA model
-pca = PCA(n_components=2, svd_solver="randomized", random_state=42)
+pca = PCA(n_components=9, svd_solver="randomized", random_state=42)
+
+pc_cols = ["PC" + str(i) for i in range(1, 10)]
 
 # %% Fit PCA model and create transformed data for plotting
 transformed = pd.DataFrame(
@@ -18,34 +20,41 @@ transformed = pd.DataFrame(
     # Add patient IDs (pid) index to transformed data
     index=df.index,
     # Label transformed data columns as PC1 and PC2
-    columns=["PC1", "PC2"]
+    columns=pc_cols
 )
 
 # %% Save transformed data for plotting
 transformed.reset_index().to_feather(
-    "data/01_77142-vcf_2-component-pca-transformed.feather"
+    "data/01_77142-vcf_9-component-pca-transformed.feather"
 )
 transformed.to_parquet(
-    "data/01_77142-vcf_2-component-pca-transformed.parquet"
+    "data/01_77142-vcf_9-component-pca-transformed.parquet"
 )
 
 # %% Save PCA model
-joblib.dump(pca, "models/01_77142-vcf_2-component-pca-model.pickle.gz")
+joblib.dump(pca, "models/01_77142-vcf_9-component-pca-model.pickle.gz")
 
 # %% Put PCA components (loadings) into a dataframe
 pca_df = pd.DataFrame({
     "PC1": pca.components_[0],
-    "PC2": pca.components_[1]
+    "PC2": pca.components_[1],
+    "PC3": pca.components_[2],
+    "PC4": pca.components_[3],
+    "PC5": pca.components_[4],
+    "PC6": pca.components_[5],
+    "PC7": pca.components_[6],
+    "PC8": pca.components_[7],
+    "PC9": pca.components_[8],
     },
     index=df.columns
 )
 
 # %% Save PCA components (loadings)
 pca_df.reset_index().to_feather(
-    "data/01_77142-vcf_2-component-pca-components.feather"
+    "data/01_77142-vcf_9-component-pca-components.feather"
 )
 pca_df.to_parquet(
-    "data/01_77142-vcf_2-component-pca-components.parquet"
+    "data/01_77142-vcf_9-component-pca-components.parquet"
 )
 
 # %% List variants with highest PCA component correlations
@@ -86,73 +95,73 @@ pca_plot_data.to_csv(
 )
 
 # %% Read in outcome data and create label and patient ID (pid) columns
-all_outcomes = pd.read_csv("data/200818_emm_IDsandstatus_all_plus.csv")
-all_outcomes = all_outcomes.assign(
-    all_labels=all_outcomes.covv_patient_status.map(
-        {
-            "Severe": 4,
-            "Released_andor_Recovered": 3,
-            "Live": 5,
-            "Symptomatic": 1,
-            "Mild": 2,
-            "Deceased": 6,
-            "Asymptomatic": 0,
-        }
-    ),
-    is_red=all_outcomes.covv_patient_status.map(
-        {
-            "Asymptomatic": 0,
-            "Deceased": 1,
-            "Epidemiology Study": 0,
-            "Live": 0,
-            "Mild": 0,
-            "Severe": 1,
-            "Pneumonia (chest X-ray)": 1,
-            "Pneumonia (chest X-ray), not critical": 1,
-            "Screening": 1,
-            "Symptomatic": 1,
-        }
-    ),
-    # %% Binary encode mortality data and gender
-    is_dead=all_outcomes["covv_patient_status"].map({"Live": 0, "Deceased": 1}),
-    is_symp=all_outcomes["covv_patient_status"].map({"Asymptomatic": 0, "Symptomatic": 1}),
-    is_sevr=all_outcomes["covv_patient_status"].map({"Mild": 0, "Severe": 1}),
-    gender=all_outcomes["covv_gender"].map({"Female": 0, "Male": 1}),
-    pid=all_outcomes["covv_accession_id"].str.extract(
+df2 = pd.read_csv("data/2020-09-01all_cleaned_GISAID0901pull.csv")
+df2 = df2.assign(
+    pid=df2["covv_accession_id"].str.extract(
         r"(\d+)",
         expand=False
-    ).astype(int)
+    ).astype(int),
+    covv_patient_status=df2["covv_patient_status"].str.strip(),
+    # %% Binary encode mortality data and gender
+    is_dead=df2["covv_patient_status"].map({"Live": 0, "Deceased": 1}),
+    is_symp=df2["covv_patient_status"].map({"Asymptomatic": 0, "Symptomatic": 1}),
+    is_sevr=df2["covv_patient_status"].map({"Mild": 0, "Severe": 1}),
+    gender=df2["covv_gender"].map({"Female": 0, "Male": 1, "Kvinna": 0}),
+    covv_clade=df2["covv_clade"].astype("str")
 ).set_index("pid")
+region_key = enumerate(sorted(df2["region"].unique()))
+clade_key = enumerate(sorted(df2["covv_clade"].unique()))
+df2 = df2.assign(
+    is_red=df2["covv_patient_status"].map(
+        {
+            # Green
+            "Asymptomatic": 0,
+            "Released": 0,
+            "Recovered": 0,
+            "Live": 0,
+            "Mild": 0,
+            # Red
+            "Deceased": 1,
+            "Severe": 1,
+            "Symptomatic": 1,
+        }
+    ),
+    cat_region=df2["region"].map({v: k for k, v in region_key}),
+    clade=df2["covv_clade"].map({v: k for k, v in clade_key}),
+)
+region_key = enumerate(sorted(df2["region"].unique()))
+list(region_key)
 
 # %% Join PCA transformed data with outcome data by patient ID (pid)
-df = transformed.join(all_outcomes)
+df = transformed.join(df2)
 
 # %% Drop rows without one of the labels in all_labels
 df = df.dropna(subset=["is_red"])
 
 # %% Save combined PCA transformed and outcome data
 df.reset_index().to_feather(
-    "data/02_77142-vcf_2-component-pca-transformed_outcomes.parquet"
+    "data/02_77142-vcf_9-component-pca-transformed_red.parquet"
 )
 df.to_parquet(
-    "data/02_77142-vcf_2-component-pca-transformed_outcomes.parquet"
+    "data/02_77142-vcf_9-component-pca-transformed_red.parquet"
 )
 
 # %% Instantiate K-means model with three clusters
 km = KMeans(n_clusters=3, random_state=42)
 
 # %% Fit K-means model to principal components (PC1, PC2)
-km.fit(df[["PC1", "PC2"]])
+km.fit(df[pc_cols])
 
 # %% Add clusters to combined PCA transformed and outcome data
 df = df.assign(cluster=km.labels_)
 
 # %% Save combined clusters, PCA transformed, and outcome data
 df.to_parquet(
-    "data/02_77142-vcf_2-component-pca-transformed_"
-    "3-cluster-kmeans_outcomes.parquet"
+    "data/02_77142-vcf_9-component-pca-transformed_"
+    "3-cluster-kmeans.parquet"
 )
-
+df.columns
+df.columns
 # %% Drop rows without one of the labels in is_red
 red = df.dropna(subset=["is_red"])
 dead = df.dropna(subset=["is_dead"])

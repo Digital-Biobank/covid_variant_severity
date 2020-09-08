@@ -9,25 +9,88 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import classification_report, confusion_matrix, recall_score, precision_score, \
     f1_score
-from sklearn.metrics import roc_curve, roc_auc_score
+from sklearn.metrics import roc_curve, roc_auc_score, accuracy_score
+from sklearn.model_selection import train_test_split
 
 # %% Read in combined clusters, PCA transformed, and mortality data
-df = pd.read_csv("data/01_77142-vcf_wide_mutations_red.csv")
-
-# %% Prepare data for scikit-learn
-X = df[[
+df = pd.read_parquet(
+    "data/02_77142-vcf_9-component-pca-transformed_"
+    "3-cluster-kmeans.parquet",
+)
+df = df[[
     "is_red",
+    "covv_patient_age",
     "gender",
     "clade",
     "cat_region",
-    "covv_patient_age",
-    "mutation_count",
-]].dropna()
-y = X["is_red"]
-X = X.drop("is_red", axis=1)
+    "cluster"
+]].dropna().astype({
+    "is_red": int,
+    "gender": int,
+    "clade": int,
+    "cat_region": int
+})
 
 # %% Convert categorical data into indicator (dummy) variables
-X = pd.get_dummies(X, columns=["cat_region", "clade"], drop_first=True)
+df = pd.get_dummies(df, columns=["cat_region", "clade", "cluster"], drop_first=True)
+
+X = df.dropna()
+y = X["is_red"]
+X = X.drop(["is_red"], axis=1)
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.33,
+    random_state=42
+)
+logreg = LogisticRegression(penalty='none', max_iter=1e4)
+logreg.fit(X_train, y_train)
+pred = logreg.predict(X_test)
+roc_auc_score(y_test, pred)
+
+# %% Prepare data for scikit-learn
+df = pd.read_parquet("data/02_semi_knn-kernel-label-spreading-dataframe.parquet")
+df = df[[
+    "is_red",
+    "covv_patient_age",
+    "gender",
+    "clade",
+    "cat_region",
+    "spread_labels"
+]].dropna().astype({
+    "is_red": int,
+    "gender": int,
+    "clade": int,
+    "cat_region": int,
+    "spread_labels": int,
+})
+true_X = df.dropna()
+true_y = true_X["is_red"]
+true_X = true_X.drop(["is_red", "spread_labels"], axis=1)
+X_train, X_test, y_train, y_test = train_test_split(
+    true_X,
+    true_y,
+    test_size=0.33,
+    random_state=42
+)
+
+
+logreg = LogisticRegression(penalty='none', max_iter=1e4)
+logreg.fit(X_train, y_train)
+pred = logreg.predict(X_test)
+roc_auc_score(y_test, pred)
+accuracy_score(y_test, pred)
+
+pred_X = df.drop(y_test.index)
+pred_y = pred_X["spread_labels"]
+pred_X = pred_X.drop(["is_red", "spread_labels"], axis=1)
+logreg = LogisticRegression(penalty='none', max_iter=1e4)
+logreg.fit(pred_X, pred_y)
+pred = logreg.predict(X_test)
+roc_auc_score(y_test, pred)
+accuracy_score(y_test, pred)
+
+logreg = LogisticRegression(penalty='none', max_iter=1e4)
 
 # %% Fit base model with statsmodels
 # mod = sm.discrete.discrete_model.Logit(y, X)
@@ -43,19 +106,22 @@ X = pd.get_dummies(X, columns=["cat_region", "clade"], drop_first=True)
 prefix = "02_77142-vcf_logistic-regression-model"
 
 suffixes = [
-    "age-gender-mutation-clade-region",
-    "age-gender-mutation-clade",
-    "age-gender-mutation",
+    "age-gender-cluster-clade-region",
+    "age-gender-cluster-clade",
+    "age-gender-clade",
+    "age-gender-cluster",
     "age-gender",
     "age",
 ]
 
-X1 = X[["covv_patient_age"]]
+X5 = X.loc[:, X.columns.str.contains("age|gen|clus|cla|reg")]
+X4 = X.loc[:, X.columns.str.contains("age|gen|clus|cla")]
+X3B = X.loc[:, X.columns.str.contains("age|gen|clad")]
+X3A = X.loc[:, X.columns.str.contains("age|gen|clus")]
 X2 = X[["covv_patient_age", "gender"]]
-X3 = X[["covv_patient_age", "gender", "mutation_count"]]
-X4 = X.loc[:, X.columns.str.contains("age|gen|mut|cla")]
+X1 = X[["covv_patient_age"]]
 
-for x, s in zip([X, X4, X3, X2, X1], suffixes):
+for x, s in zip([X5, X4, X3B, X3A, X2, X1], suffixes):
     logreg = LogisticRegression(penalty='none', max_iter=1e4)
     logreg.fit(x, y)
     joblib.dump(logreg, prefix + s + ".pickle")
@@ -77,9 +143,9 @@ for x, s in zip([X, X4, X3, X2, X1], suffixes):
 
 plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
 plt.tight_layout()
-plt.savefig("plots/" + prefix + suffixes[-1] + ".png")
+plt.savefig("plots/" + prefix + "_" + suffixes[0] + ".png")
 plt.show()
-
+X.shape
 # %% Fit others model with scikit-learn
 prefix = "02_77142-vcf_"
 

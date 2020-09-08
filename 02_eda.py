@@ -61,13 +61,19 @@ df["gender"].value_counts(normalize=True)
 df["gender"].value_counts()
 df["mutation_count"].quantile(.99)
 df.groupby("is_red")["covv_clade"].value_counts(normalize=True)
-sizes = df[(df.covv_gender != "Kvinna") & (df.covv_gender != "Unknown")].groupby(["is_red", "covv_gender"]).size().unstack()
+sizes = df[
+    (df.covv_gender != "Kvinna")
+    & (df.covv_gender != "Unknown")
+    ].groupby([
+    "is_red",
+    "covv_gender"
+]).size().unstack()
 sizes.index = ["Green", "Red"]
 sizes.assign(sum=sizes.sum(axis=1)).sort_values(by="sum").drop("sum", axis=1).plot.barh(stacked=True)
 plt.xlabel("Patient Count")
 plt.ylabel("Status")
 plt.title("Gender by green/red status")
-plt.legend(title="Clade")
+plt.legend(title="Gender")
 plt.tight_layout()
 plt.savefig("plots/00_77142-vcf_gender-by-red.png")
 plt.show()
@@ -83,15 +89,19 @@ plt.xlim((0, 3200))
 plt.tight_layout()
 plt.savefig("plots/00_77142-vcf_clade-by-red.png")
 plt.show()
-
-sizes = df.groupby(["is_red", "region"]).size().unstack()
+reg_list = list(region_key)
+regions = [r[1] for r in reg_list]
+df["is_red"].value_counts()
+sizes = df.groupby("is_red")["cat_region"].value_counts(normalize=True).unstack()
 sizes.index = ["Green", "Red"]
+sizes.columns = regions
+sizes
 sizes.assign(sum=sizes.sum(axis=1)).sort_values(by="sum").drop("sum", axis=1).plot.barh(stacked=True)
-plt.xlabel("Patient Count")
+plt.xlabel("Proportion of Patients")
 plt.ylabel("Status")
 plt.title("Region by green/red status")
 plt.legend(title="Region", loc=4)
-plt.xlim((0, 3900))
+plt.xlim((0, 1.49))
 plt.tight_layout()
 plt.savefig("plots/00_77142-vcf_region-by-red.png")
 plt.show()
@@ -245,7 +255,8 @@ plt.tight_layout()
 plt.savefig("plots/00_77142-vcf_clade-bar.png")
 plt.show()
 
-df[(df.covv_gender != "Kvinna") & (df.covv_gender != "Unknown")].reset_index().groupby("covv_gender")["pid"].count().sort_values().tail(20).plot.barh(legend=False)
+df[(df.covv_gender != "Kvinna") & (df.covv_gender != "Unknown")].reset_index().groupby("covv_gender")[
+    "pid"].count().sort_values().tail(20).plot.barh(legend=False)
 plt.xlabel("Patient Count")
 plt.ylabel("Gender")
 plt.title("Gender frequency")
