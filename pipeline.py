@@ -13,7 +13,7 @@ targets = (
 scripts = (
     Path("00_wide.py"),
     Path("01_pca-kmeans.py"),
-    Path("02_logit.py"),
+    Path("02_prep.py"),
 )
 
 for t, s in zip(targets, scripts):

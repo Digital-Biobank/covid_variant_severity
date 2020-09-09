@@ -1,7 +1,11 @@
+# %% Imports
+import pathlib
 import pandas as pd
 
+proj_dir = pathlib.Path.home() / "covid" / "vcf"
+
 # %% Read in cleaned data
-df = pd.read_csv("data/2020-09-01all_cleaned_GISAID0901pull.csv", index_col=0)
+df = pd.read_csv(proj_dir / "data/2020-09-01all_cleaned_GISAID0901pull.csv", index_col=0)
 
 # %% Create pid and binary variables
 df = df.assign(
@@ -43,12 +47,12 @@ df = df.assign(
     cat_region=df["region"].map({v: k for k, v in region_key}),
     clade=df["covv_clade"].map({v: k for k, v in clade_key}),
 )
-
+df.columns
 # %% Read in VCF wide data
-var_df = pd.read_parquet("data/00_77142-vcf_wide.parquet").fillna(0)
+var_df = pd.read_parquet(proj_dir / "data/00_77142-vcf_wide.parquet").fillna(0)
 
 # %% Combined cleaned and variant data
 df = df.join(var_df)
 
 # %% Save cleaned and variant data
-df.to_parquet("data/01_77142-vcf_wide_join.parquet")
+df.to_parquet(proj_dir / "data/01_77142-vcf_wide_join.parquet")

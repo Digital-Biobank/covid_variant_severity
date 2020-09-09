@@ -1,28 +1,24 @@
-# %% Imports
 import joblib
-import matplotlib.pyplot as plt
+import pathlib
 import pandas as pd
-import statsmodels as sm
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
+import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix, recall_score, precision_score, \
     f1_score
 from sklearn.metrics import roc_curve, roc_auc_score, accuracy_score
 from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
 
-# %% Read in cleaned data
-df = pd.read_parquet("data/01_77142-vcf_wide_join.parquet")
+proj_dir = pathlib.Path.home() / "covid" / "vcf"
 
-# %% Combined cleaned and variant data
-X = df[["covv_patient_age", "gender", "cat_region", "clade", "is_red"]]
+df = pd.read_parquet(proj_dir / "data/01_77142-vcf_wide_join_red.parquet")
 
 # %% Convert categorical data into indicator (dummy) variables
-X = pd.get_dummies(X, columns=["cat_region", "clade"], drop_first=True)
-X.columns
+X = pd.get_dummies(df, columns=["cat_region", "clade"], drop_first=True)
+X = X.drop("region", axis=1)
 # %% Prepare scikit-learn data
-X = df.dropna()
 y = X["is_red"]
 X = X.drop(["is_red"], axis=1)
 X_train, X_test, y_train, y_test = train_test_split(
@@ -42,15 +38,17 @@ accuracy_score(y_test, pred)
 # %% Plot coefficients
 coefs = pd.DataFrame(logreg.coef_, columns=X.columns).squeeze()
 sorted_coefs = coefs.sort_values()
+sorted_coefs.index = ["33bp del at 499"] + list(sorted_coefs.index[1:])
 sorted_coefs.drop(sorted_coefs.index[15:-15]).plot.barh(legend=False)
 plt.tight_layout()
 plt.title("Top Green/Red Logistic Regression Variables")
 plt.xlabel("Coefficient")
 plt.ylabel("Variant")
+plt.savefig("top_red_variable_coefs.png")
 plt.show()
 
 # %% Plot ROC curve
-prefix = "02_77142-vcf_logistic-regression-model"
+prefix = "03_77142-vcf_logistic-regression-model"
 
 suffixes = [
     "age-gender-region-clade-variant",
@@ -84,21 +82,24 @@ for x, s in zip([X, X4, X3, X2, X1], suffixes):
     precision_score(y_test, pred)
     recall_score(y_test, pred)
     f1_score(y_test, pred)
-    pred = logreg.predict_proba(x)[::, 1]
+    pred = logreg.predict_proba(X_test)[::, 1]
     fpr, tpr, _ = roc_curve(y_test, pred)
     auc = roc_auc_score(y_test, pred)
     print(auc)
     plt.plot(fpr, tpr, label=f"{s.replace('-', ', ').title()}")
     plt.legend(loc=4)
-    plt.xlabel("False positive rate")
-    plt.ylabel("True positive rate")
 
+plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
+plt.tight_layout()
+plt.title("Green/red classification logistic regression")
+plt.xlabel("False positive rate")
+plt.ylabel("True positive rate")
 plt.savefig("plots/" + prefix + "_" + suffixes[0] + ".png")
 plt.show()
 
 # %% Semi-supervised learning
 # %% Prepare data for scikit-learn
-df = pd.read_parquet("data/02_semi_knn-kernel-label-spreading-dataframe.parquet")
+df = pd.read_parquet(proj_dir / "data/02_semi_knn-kernel-label-spreading-dataframe.parquet")
 df = df[[
     "is_red",
     "covv_patient_age",
@@ -123,7 +124,6 @@ X_train, X_test, y_train, y_test = train_test_split(
     random_state=42
 )
 
-
 logreg = LogisticRegression(penalty='none', max_iter=1e4)
 logreg.fit(X_train, y_train)
 pred = logreg.predict(X_test)
@@ -141,14 +141,13 @@ accuracy_score(y_test, pred)
 
 logreg = LogisticRegression(penalty='none', max_iter=1e4)
 
-
 cols = [
     "is_red",
     "covv_patient_age",
     "gender",
     "clade",
     "cat_region",
-]# + ["PC" + str(i) for i in range(1, 10)]
+]  # + ["PC" + str(i) for i in range(1, 10)]
 cols
 df.columns
 df = df[cols].dropna().astype({
@@ -166,7 +165,6 @@ X_train, X_test, y_train, y_test = train_test_split(
     test_size=0.33,
     random_state=42
 )
-
 
 logreg = LogisticRegression(penalty='none', max_iter=1e4)
 logreg.fit(X_train, y_train)
