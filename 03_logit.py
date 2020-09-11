@@ -1,9 +1,12 @@
+# %% Imports
 import joblib
 import pathlib
+import statsmodels.api as sm
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 from sklearn.metrics import classification_report, confusion_matrix, recall_score, precision_score, \
     f1_score
 from sklearn.metrics import roc_curve, roc_auc_score, accuracy_score
@@ -11,16 +14,24 @@ from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 
+# %% Variables
 proj_dir = pathlib.Path.home() / "covid" / "vcf"
 
-df = pd.read_parquet(proj_dir / "data/01_77142-vcf_wide_join_red.parquet")
+TARGET_NAME = "is_red"
+TARGET_PART = "red"
+TARGET_FULL = "Green/Red"
+
+# %% Data
+df = pd.read_parquet(
+    proj_dir / f"data/01_77142-vcf_wide_join_{TARGET_PART}.parquet"
+)
 
 # %% Convert categorical data into indicator (dummy) variables
 X = pd.get_dummies(df, columns=["cat_region", "clade"], drop_first=True)
 X = X.drop("region", axis=1)
 # %% Prepare scikit-learn data
-y = X["is_red"]
-X = X.drop(["is_red"], axis=1)
+y = X[TARGET_NAME]
+X = X.drop([TARGET_NAME], axis=1)
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
@@ -29,23 +40,108 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 # %% Instantiate, fit, and assess scikit-learn model
-logreg = LogisticRegression(penalty='none', max_iter=1e4)
+logreg = LogisticRegressionCV(
+    penalty='l1',
+    Cs=100,
+    solver="saga",
+    max_iter=1e4,
+    random_state=42,
+    n_jobs=-1
+)
+
 logreg.fit(X_train, y_train)
 pred = logreg.predict(X_test)
 roc_auc_score(y_test, pred)
 accuracy_score(y_test, pred)
 
-# %% Plot coefficients
+joblib.dump(
+    logreg,
+    "03_red-target_logistic-regression-model_"
+    "l1-penalty_5-fold-cv_100-Cs_66-percent-train-size.pickle"
+)
+
+# %% Plot sklearn coefficients
 coefs = pd.DataFrame(logreg.coef_, columns=X.columns).squeeze()
-sorted_coefs = coefs.sort_values()
+nz_coefs = coefs[coefs != 0]
+sorted_coefs = nz_coefs.sort_values()
 sorted_coefs.index = ["33bp del at 499"] + list(sorted_coefs.index[1:])
-sorted_coefs.drop(sorted_coefs.index[15:-15]).plot.barh(legend=False)
+N = 20
+cmap = plt.cm.get_cmap('coolwarm', N)
+top_coefs = sorted_coefs.drop(sorted_coefs.index[N//2:-N//2])
+my_norm = Normalize(vmin=top_coefs.min(), vmax=top_coefs.max())
+top_coefs.plot.barh(
+    legend=False,
+    color=cmap(my_norm(top_coefs)),
+    edgecolor="k"
+
+)
 plt.tight_layout()
-plt.title("Top Green/Red Logistic Regression Variables")
+plt.title(f"Top {TARGET_FULL} Logistic Regression Variables")
 plt.xlabel("Coefficient")
 plt.ylabel("Variant")
-plt.savefig("top_red_variable_coefs.png")
+plt.savefig(f"top_{TARGET_PART}_variable_coefs.png")
 plt.show()
+
+# %% Save sklearn coefficients
+nz_coefs.to_csv(
+    "03_red-target_logistic-regression-coefs_"
+    "l1-penalty_5-fold-cv_100-Cs_66-percent-train-size.pickle"
+)
+
+nz_coefs = pd.read_csv(
+    "03_red-target_logistic-regression-coefs_"
+    "l1-penalty_5-fold-cv_100-Cs_66-percent-train-size.pickle"
+)
+
+# %% Plot statsmodels coefficients
+nzX = X[nz_coefs.index]
+lr = sm.Logit(y, nzX)
+fit = lr.fit_regularized(alpha=1/logreg.C_)
+fit.summary()
+err_series = fit.params - fit.conf_int()[0]
+
+# %% Save statsmodels logistic regression model
+joblib.dump(
+    fit,
+    "03_red-target_logistic-regression-model_"
+    "l1-penalty_statsmodels.pickle"
+)
+
+coef_df = pd.DataFrame({'coef': fit.params.values[1:],
+                        'err': err_series.values[1:],
+                        'varname': err_series.index.values[1:]
+                       })
+
+coef_df.to_csv(
+    "03_red-target_statsmodels-logistic-regression-model.pickle"
+)
+
+fig, ax = plt.subplots(figsize=(8, 5))
+coef_df.plot.barh(
+    x='varname',
+    y='coef',
+    ax=ax,
+    color='none',
+    yerr='err',
+    legend=False
+)
+ax.set_ylabel('')
+ax.set_xlabel('')
+ax.scatter(
+    x=coef_df['coef'],
+    y=pd.np.arange(coef_df.shape[0]),
+    marker='s',
+    s=120,
+    color='black'
+)
+ax.axvline(x=0, linestyle='--', color='black', linewidth=4)
+ax.xaxis.set_ticks_position('none')
+_ = ax.set_yticklabels(coef_df["varname"], rotation=0, fontsize=16)
+plt.savefig(
+    "03_red_statsmodels-logistic-regression-coefplot.png"
+)
+plt.show()
+
 
 # %% Plot ROC curve
 prefix = "03_77142-vcf_logistic-regression-model"
@@ -63,15 +159,14 @@ X2 = X[["covv_patient_age", "gender"]]
 X1 = X[["covv_patient_age"]]
 
 for x, s in zip([X, X4, X3, X2, X1], suffixes):
-    logreg = LogisticRegression(penalty='none', max_iter=1e4)
     X_train, X_test, y_train, y_test = train_test_split(
         x,
         y,
         test_size=0.33,
         random_state=42
     )
-    logreg = LogisticRegression(penalty='none', max_iter=1e4)
-    logreg.fit(X_train, y_train)
+    lr = LogisticRegression(penalty='l1', solver="saga", C=logreg.C_[0], max_iter=1e4)
+    lr.fit(X_train, y_train)
     joblib.dump(logreg, prefix + s + ".pickle")
     pred = logreg.predict(X_test)
     roc_auc_score(y_test, pred)
@@ -91,9 +186,9 @@ for x, s in zip([X, X4, X3, X2, X1], suffixes):
 
 plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
 plt.tight_layout()
-plt.title("Green/red classification logistic regression")
-plt.xlabel("False positive rate")
-plt.ylabel("True positive rate")
+plt.title(f"{TARGET_FULL} Classification Logistic Regression")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
 plt.savefig("plots/" + prefix + "_" + suffixes[0] + ".png")
 plt.show()
 
