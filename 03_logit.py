@@ -29,9 +29,12 @@ df = pd.read_parquet(
 # %% Convert categorical data into indicator (dummy) variables
 X = pd.get_dummies(df, columns=["cat_region", "clade"], drop_first=True)
 X = X.drop("region", axis=1)
+
 # %% Prepare scikit-learn data
 y = X[TARGET_NAME]
 X = X.drop([TARGET_NAME], axis=1)
+
+# %% Train-test split
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
@@ -56,14 +59,58 @@ accuracy_score(y_test, pred)
 
 joblib.dump(
     logreg,
-    "03_red-target_logistic-regression-model_"
+    proj_dir / "models" / "03_red-target_logistic-regression-model_"
     "l1-penalty_5-fold-cv_100-Cs_66-percent-train-size.pickle"
 )
 
+logreg = joblib.load(
+    proj_dir / "models" / "03_red-target_logistic-regression-model_"
+    "l1-penalty_5-fold-cv_100-Cs_66-percent-train-size.pickle"
+)
+
+# %% Compare LASSO and regular Logistic Regression
+l1_reg = LogisticRegression(
+    penalty='l1',
+    solver="saga",
+    C=logreg.C_[0],
+    max_iter=1e4,
+    n_jobs=-1
+)
+
+l1_reg.fit(X_train, y_train)
+pred = l1_reg.predict(X_test)
+roc_auc_score(y_test, pred)
+accuracy_score(y_test, pred)
+
+no_reg = LogisticRegression(
+    penalty='none',
+    solver="saga",
+    max_iter=1e4,
+    n_jobs=-1
+)
+
+no_reg.fit(X_train, y_train)
+pred = no_reg.predict(X_test)
+roc_auc_score(y_test, pred)
+accuracy_score(y_test, pred)
+
+joblib.dump(
+    l1_reg,
+    proj_dir / "models" / "03_red-target_logistic-regression-model_"
+    "l1-penalty_66-percent-train-size.pickle"
+)
+
+joblib.dump(
+    no_reg,
+    proj_dir / "models" / "03_red-target_logistic-regression-model_"
+    "no-penalty_66-percent-train-size.pickle"
+)
+
 # %% Plot sklearn coefficients
-coefs = pd.DataFrame(logreg.coef_, columns=X.columns).squeeze()
+coefs = pd.DataFrame(l1_reg.coef_, columns=X.columns).squeeze()
 nz_coefs = coefs[coefs != 0]
 sorted_coefs = nz_coefs.sort_values()
+sorted_coefs.index[0]
 sorted_coefs.index = ["33bp del at 499"] + list(sorted_coefs.index[1:])
 N = 20
 cmap = plt.cm.get_cmap('coolwarm', N)
@@ -73,7 +120,6 @@ top_coefs.plot.barh(
     legend=False,
     color=cmap(my_norm(top_coefs)),
     edgecolor="k"
-
 )
 plt.tight_layout()
 plt.title(f"Top {TARGET_FULL} Logistic Regression Variables")
@@ -88,9 +134,11 @@ nz_coefs.to_csv(
     "l1-penalty_5-fold-cv_100-Cs_66-percent-train-size.pickle"
 )
 
+# %% Load sklearn coefficients
 nz_coefs = pd.read_csv(
     "03_red-target_logistic-regression-coefs_"
-    "l1-penalty_5-fold-cv_100-Cs_66-percent-train-size.pickle"
+    "l1-penalty_5-fold-cv_100-Cs_66-percent-train-size.pickle",
+    index_col=0
 )
 
 # %% Plot statsmodels coefficients
@@ -166,9 +214,10 @@ for x, s in zip([X, X4, X3, X2, X1], suffixes):
         random_state=42
     )
     lr = LogisticRegression(penalty='l1', solver="saga", C=logreg.C_[0], max_iter=1e4)
+    # lr = LogisticRegression(penalty='none', solver="saga", max_iter=1e4, n_jobs=-1)
     lr.fit(X_train, y_train)
-    joblib.dump(logreg, prefix + s + ".pickle")
-    pred = logreg.predict(X_test)
+    joblib.dump(lr, prefix + s + ".pickle")
+    pred = lr.predict(X_test)
     roc_auc_score(y_test, pred)
     accuracy_score(y_test, pred)
     print(classification_report(y_test, pred))
@@ -177,7 +226,7 @@ for x, s in zip([X, X4, X3, X2, X1], suffixes):
     precision_score(y_test, pred)
     recall_score(y_test, pred)
     f1_score(y_test, pred)
-    pred = logreg.predict_proba(X_test)[::, 1]
+    pred = lr.predict_proba(X_test)[::, 1]
     fpr, tpr, _ = roc_curve(y_test, pred)
     auc = roc_auc_score(y_test, pred)
     print(auc)
