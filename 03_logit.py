@@ -28,9 +28,10 @@ df = pd.read_parquet(
 )
 
 # %% Convert categorical data into indicator (dummy) variables
-X = pd.get_dummies(df, columns=["clade"])
 X = pd.get_dummies(df, columns=["cat_region"], drop_first=True)
 X = X.drop("region", axis=1)
+X = X.drop("clade", axis=1)
+# X = pd.get_dummies(X, columns=["clade"], drop_first=True)
 
 # %% Correlations
 corr_mat = X.corr()
@@ -47,8 +48,8 @@ sort_corr = pd.read_csv("data/03_sorted-correlation-matrix_variants-region-sex-a
 not_one_corr = sort_corr[sort_corr < .95]
 sort_corr[(sort_corr > .95) & (sort_corr < 1)].shape
 gt95 = sort_corr[sort_corr > .95].index.get_level_values(1).drop_duplicates()
-gt95 = pd.Series(gt95)
-gt95.to_csv("data/correlated-variants.csv")
+gt95.to_csv("data/correlated-variants.csv", index=False)
+gt95 = pd.read_csv("data/correlated-variants.csv")
 clade_corr = corr_mat[corr_mat.columns.str.contains("clade")]
 clade_corr.to_csv("data/clade-correlated-variants.csv")
 clade_corr = clade_corr.loc[:, ~clade_corr.columns.str.contains("clade")]
@@ -57,9 +58,10 @@ stack_clade[stack_clade > .4]
 stack_clade.to_csv("data/stacked-clade-correlated-variants.csv")
 
 # %% Drop highly correlated features
-lt95_X = X.drop(gt95, axis=1)
+lt95_X = X.drop(gt95.values, axis=1)
 lt95_X = lt95_X.loc[:, ~lt95_X.columns.str.contains("clade")]
-
+lt95_X.to_parquet("data/03_95-correlation-threshold_variants-region-sex-age-dataframe.parquet")
+lt95_X = pd.read_parquet("data/03_95-correlation-threshold_variants-region-sex-age-dataframe.parquet")
 sort_corr["C14408T"]["C241T"]
 sort_corr.shape
 not_one_corr.shape
@@ -108,6 +110,14 @@ X_train, X_test, y_train, y_test = train_test_split(
     random_state=42
 )
 
+# %% Train-test split
+lt95_X_train, lt95_X_test, lt95_y_train, lt95_y_test = train_test_split(
+    lt95_X,
+    y,
+    test_size=0.33,
+    random_state=42
+)
+
 # %% Instantiate, fit, and assess scikit-learn model
 correg = LogisticRegression(
     solver="saga",
@@ -116,10 +126,10 @@ correg = LogisticRegression(
     n_jobs=-1
 )
 
-correg.fit(X_train, y_train)
-pred = correg.predict(X_test)
-roc_auc_score(y_test, pred)
-accuracy_score(y_test, pred)
+correg.fit(lt95_X_train, lt95_y_train)
+pred = correg.predict(lt95_X_test)
+roc_auc_score(lt95_y_test, pred)
+accuracy_score(lt95_y_test, pred)
 
 # %% Save scikit-learn model
 joblib.dump(
@@ -144,7 +154,7 @@ logreg = LogisticRegressionCV(
     n_jobs=-1
 )
 
-# logreg.fit(X_train, y_train)
+logreg.fit(X_train, y_train)
 pred = logreg.predict(X_test)
 roc_auc_score(y_test, pred)
 accuracy_score(y_test, pred)
@@ -171,23 +181,10 @@ l1_reg = LogisticRegression(
     n_jobs=-1
 )
 
-# l1_reg.fit(X_train, y_train)
+l1_reg.fit(X_train, y_train)
 pred = l1_reg.predict(X_test)
 roc_auc_score(y_test, pred)
 accuracy_score(y_test, pred)
-
-no_reg = LogisticRegression(
-    penalty='none',
-    solver="saga",
-    max_iter=1e4,
-    n_jobs=-1
-)
-
-# no_reg.fit(X_train, y_train)
-pred = no_reg.predict(X_test)
-roc_auc_score(y_test, pred)
-accuracy_score(y_test, pred)
-
 
 # %% Save scikit-learn model
 joblib.dump(
@@ -196,6 +193,19 @@ joblib.dump(
     "l1-penalty_66-percent-train-size.pickle"
 )
 
+no_reg = LogisticRegression(
+    penalty='none',
+    solver="saga",
+    max_iter=1e4,
+    n_jobs=-1
+)
+
+no_reg.fit(X_train, y_train)
+pred = no_reg.predict(X_test)
+roc_auc_score(y_test, pred)
+accuracy_score(y_test, pred)
+
+# %% Save scikit-learn model
 joblib.dump(
     no_reg,
     proj_dir / "models" / "03_red-target_logistic-regression-model_"
@@ -213,34 +223,49 @@ no_reg = joblib.load(
                           "no-penalty_66-percent-train-size.pickle"
 )
 
-model_names = "No Penalty", "L1 Penalty"
-for m, s in zip([no_reg, logreg], model_names):
-    pred = m.predict(X_test)
-    roc_auc_score(y_test, pred)
-    accuracy_score(y_test, pred)
-    print(classification_report(y_test, pred))
-    print(classification_report(y_test, pred))
-    print(confusion_matrix(y_test, pred))
-    precision_score(y_test, pred)
-    recall_score(y_test, pred)
-    f1_score(y_test, pred)
-    pred = m.predict_proba(X_test)[::, 1]
-    fpr, tpr, _ = roc_curve(y_test, pred)
-    auc = roc_auc_score(y_test, pred)
-    print(auc)
-    plt.plot(fpr, tpr, label=f"{s.replace('-', ', ').title()}")
-    plt.legend(loc=4)
+model_names = "n=23671", "n=20982"
+pred = no_reg.predict(X_test)
+roc_auc_score(y_test, pred)
+accuracy_score(y_test, pred)
+print(classification_report(y_test, pred))
+print(classification_report(y_test, pred))
+print(confusion_matrix(y_test, pred))
+precision_score(y_test, pred)
+recall_score(y_test, pred)
+f1_score(y_test, pred)
+pred = no_reg.predict_proba(X_test)[::, 1]
+fpr, tpr, _ = roc_curve(y_test, pred)
+auc = roc_auc_score(y_test, pred)
+print(auc)
+plt.plot(fpr, tpr, label=f"{model_names[0].replace('-', ', ').title()}")
+plt.legend(loc=4)
+
+pred = correg.predict(lt95_X_test)
+roc_auc_score(lt95_y_test, pred)
+accuracy_score(lt95_y_test, pred)
+print(classification_report(lt95_y_test, pred))
+print(classification_report(lt95_y_test, pred))
+print(confusion_matrix(lt95_y_test, pred))
+precision_score(lt95_y_test, pred)
+recall_score(lt95_y_test, pred)
+f1_score(lt95_y_test, pred)
+pred = correg.predict_proba(lt95_X_test)[::, 1]
+fpr, tpr, _ = roc_curve(lt95_y_test, pred)
+auc = roc_auc_score(lt95_y_test, pred)
+print(auc)
+plt.plot(fpr, tpr, label=f"{model_names[1].replace('-', ', ').title()}")
+plt.legend(loc=4)
 
 plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
 plt.tight_layout()
 plt.title(f"{TARGET_FULL} Classification Logistic Regression")
 plt.xlabel("False Positive Rate")
 plt.ylabel("True Positive Rate")
-plt.savefig("plots/" + "l1_vs_no-penalty.png")
+plt.savefig("plots/" + "corr-thres_vs_no-corr-thres.png")
 plt.show()
 
 # %% Plot sklearn coefficients
-coefs = pd.DataFrame(correg.coef_, columns=X.columns).squeeze()
+coefs = pd.DataFrame(no_reg.coef_, columns=X.columns).squeeze()
 nz_coefs = coefs[coefs != 0]
 nz_coefs.shape
 sorted_coefs = nz_coefs.sort_values()
@@ -261,15 +286,16 @@ plt.xlabel("Coefficient")
 plt.ylabel("Variant")
 plt.savefig(f"top_{TARGET_PART}_variable_coefs.png")
 plt.show()
-
+gt95.shape
+lt95_X.shape
 # %% Save sklearn coefficients
 nz_coefs.to_csv(
-    "03_red-target_logistic-regression-coefs_non-zero-coefficients.pickle"
+    "03_red-target_logistic-regression-coefs_non-zero-coefficients.csv"
 )
 
 # %% Load sklearn coefficients
 nz_coefs = pd.read_csv(
-    "03_red-target_logistic-regression-non-zero-coefficients.pickle",
+    "03_red-target_logistic-regression-non-zero-coefficients.csv",
     index_col=0
 )
 
@@ -390,15 +416,17 @@ prefix = "03_77142-vcf_logistic-regression-model"
 
 suffixes = [
     "age-gender-region-variant",
+    "age-gender-region-clade",
     "age-gender-region",
     "age-gender",
     "age",
 ]
+X4 = X.loc[:, X.columns.str.contains("age|gen|reg|clade")]
 X3 = X.loc[:, X.columns.str.contains("age|gen|reg")]
 X2 = X[["covv_patient_age", "gender"]]
 X1 = X[["covv_patient_age"]]
 
-for x, s in zip([X, X3, X2, X1], suffixes):
+for x, s in zip([X, X4, X3, X2, X1], suffixes):
     X_train, X_test, y_train, y_test = train_test_split(
         x,
         y,
