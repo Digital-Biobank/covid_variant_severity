@@ -1,4 +1,5 @@
 # %% Imports
+from operator import lt
 import joblib
 import pathlib
 import statsmodels.api as sm
@@ -27,44 +28,214 @@ df = pd.read_parquet(
     proj_dir / f"data/01_77142-vcf_wide_join_{TARGET_PART}.parquet"
 )
 
+df.to_csv(
+    proj_dir / f"data/01_77142-vcf_wide_join_{TARGET_PART}.csv"
+)
+
+from sklearn.preprocessing import MinMaxScaler
+min_max_scaler = MinMaxScaler()
 # %% Convert categorical data into indicator (dummy) variables
 X = pd.get_dummies(df, columns=["cat_region"], drop_first=True)
 X = X.drop("region", axis=1)
 X = X.drop("clade", axis=1)
 # X = pd.get_dummies(X, columns=["clade"], drop_first=True)
+X["covv_patient_age"] = min_max_scaler.fit_transform(X["covv_patient_age"].values.reshape(-1, 1))
+X.head()
+# %% Remove columns with low variance
+y = X[TARGET_NAME]
+X = X.drop([TARGET_NAME], axis=1)
+
+lr = LogisticRegression(penalty="l1", solver="liblinear")
+lr.fit(X, y)
+coef_df = pd.DataFrame(lr.coef_, columns=X.columns)
+ors = coef_df.squeeze().transform("exp")
+ors.idxmax()
+ors.idxmin()
+ors.min()
+ors.max()
+top_btm = ors[(ors > 2) | (ors < 0.5)].index
+top_btm_X = X[top_btm]
+top_btm_X.assign(y=y).to_csv("data/top_btm_df.csv")
+lr2 = sm.Logit(y, top_btm_X)
+fit = lr2.fit_regularized(alpha=1)
+lr2 = LogisticRegression()
+lr2.fit(top_btm_X, y)
+np.exp(lr2.coef_).max()
+predictions = lr2.predict(top_btm_X)
+
+# newX = pd.DataFrame({"Constant":np.ones(len(X))}).join(pd.DataFrame(X))
+# MSE = (sum((y-predictions)**2))/(len(newX)-len(newX.columns))
+
+# Note if you don't want to use a DataFrame replace the two lines above with
+newX = np.append(np.ones((len(top_btm_X),1)), top_btm_X, axis=1)
+MSE = (sum((y-predictions)**2))/(len(newX)-len(newX[0]))
+
+resLogit = lr.fit(hc_X_train, hc_y_train)
+
+# Calculate matrix of predicted class probabilities.
+# Check resLogit.classes_ to make sure that sklearn ordered your classes as expected
+predProbs = resLogit.predict_proba(hc_X_train)
+
+# Design matrix -- add column of 1's at the beginning of your X_train matrix
+X_design = np.hstack([np.ones((hc_X_train.shape[0], 1)), hc_X_train])
+
+# Initiate matrix of 0's, fill diagonal with each predicted observation's variance
+V = np.diagflat(np.product(predProbs, axis=1))
+
+# Covariance matrix
+# Note that the @-operater does matrix multiplication in Python 3.5+, so if you're running
+# Python 3.5+, you can replace the covLogit-line below with the more readable:
+# covLogit = np.linalg.inv(X_design.T @ V @ X_design)
+covLogit = np.linalg.inv(np.dot(np.dot(X_design.T, V), X_design))
+print("Covariance matrix: ", covLogit)
+
+# Standard errors
+print("Standard errors: ", np.sqrt(np.diag(covLogit)))
+
+var_b = MSE*(np.linalg.inv(np.dot(newX.T, newX)).diagonal())
+sd_b = np.sqrt(var_b)
+ts_b = params/ sd_b
+
+from scipy import stats
+p_values =[2*(1-stats.t.cdf(np.abs(i), (len(newX)-len(newX[0])))) for i in ts_b]
+
+sd_b = np.round(sd_b,3)
+ts_b = np.round(ts_b,3)
+p_values = np.round(p_values,3)
+params = np.round(params,4)
+
+myDF3 = pd.DataFrame()
+myDF3["Coefficients"],myDF3["Standard Errors"],myDF3["t values"],myDF3["Probabilities"] = [params,sd_b,ts_b,p_values]
+print(myDF3)
+
+
+hv_X = X.loc[:, X.var() > 0]
+hc_X = hv_X.loc[:, hv_X.sum() > 33]
+hc_X
 
 # %% Correlations
 corr_mat = X.corr()
-corr_mat.to_parquet("data/03_correlation-matrix_variants-region-clade-sex-age.parquet")
-corr_mat.to_csv("data/03_correlation-matrix_variants-region-clade-sex-age.csv")
+corr_mat.to_parquet("data/03_correlation-matrix_variants-region-sex-age.parquet")
+corr_mat.to_csv("data/03_correlation-matrix_variants-region-sex-age.csv")
 corr_mat.reset_index().to_feather("data/03_correlation-matrix_variants-region-clade-sex-age.feather")
-corr_mat = pd.read_parquet("data/03_correlation-matrix_variants-region-clade-sex-age.parquet")
+# corr_mat = pd.read_parquet("data/03_correlation-matrix_variants-region-clade-sex-age.parquet")
+# nz_corr_mat = corr_mat.loc[nz_coefs.index, nz_coefs.index]
+# nz_corr_mat.shape
 mask = np.tril(np.ones_like(corr_mat, dtype=bool))
 corr_mat[mask] = np.nan
 stack_corr = corr_mat.stack()
 sort_corr = stack_corr.sort_values(kind="quicksort")
 sort_corr.to_csv("data/03_sorted-correlation-matrix_variants-region-sex-age.csv")
-sort_corr = pd.read_csv("data/03_sorted-correlation-matrix_variants-region-sex-age.csv")
-not_one_corr = sort_corr[sort_corr < .95]
-sort_corr[(sort_corr > .95) & (sort_corr < 1)].shape
-gt95 = sort_corr[sort_corr > .95].index.get_level_values(1).drop_duplicates()
-gt95.to_csv("data/correlated-variants.csv", index=False)
-gt95 = pd.read_csv("data/correlated-variants.csv")
-clade_corr = corr_mat[corr_mat.columns.str.contains("clade")]
-clade_corr.to_csv("data/clade-correlated-variants.csv")
-clade_corr = clade_corr.loc[:, ~clade_corr.columns.str.contains("clade")]
-stack_clade = clade_corr.stack().sort_values(kind="quicksort")
-stack_clade[stack_clade > .4]
-stack_clade.to_csv("data/stacked-clade-correlated-variants.csv")
 
+sort_corr
+# %% Use correlations to get list of variables to be removed
+sort_corr = pd.read_csv("data/03_sorted-correlation-matrix_variants-region-sex-age.csv")
+sort_corr.columns = ["var1", "var2", "corr"]
+sort_corr = sort_corr.set_index(["var1", "var2"])
+
+# %% Use correlations to get list of variables to be removed
+gt95_0 = sort_corr[sort_corr["corr"] > .95].index.get_level_values(0).drop_duplicates()
+gt95_1 = sort_corr[sort_corr["corr"] > .95].index.get_level_values(1).drop_duplicates()
+gt90_0 = sort_corr[sort_corr["corr"] > .9].index.get_level_values(0).drop_duplicates()
+gt90_1 = sort_corr[sort_corr["corr"] > .9].index.get_level_values(1).drop_duplicates()
+gt85_0 = sort_corr[sort_corr["corr"] > .85].index.get_level_values(0).drop_duplicates()
+gt85_1 = sort_corr[sort_corr["corr"] > .85].index.get_level_values(1).drop_duplicates()
+gt80_0 = sort_corr[sort_corr["corr"] > .80].index.get_level_values(0).drop_duplicates()
+gt80_1 = sort_corr[sort_corr["corr"] > .80].index.get_level_values(1).drop_duplicates()
+gt70_0 = sort_corr[sort_corr["corr"] > .70].index.get_level_values(0).drop_duplicates()
+gt60_0 = sort_corr[sort_corr["corr"] > .60].index.get_level_values(0).drop_duplicates()
+gt50_0 = sort_corr[sort_corr["corr"] > .50].index.get_level_values(0).drop_duplicates()
+
+# gt95_0.to_csv("data/correlated-variants.csv", index=False)
+# gt95_0 = pd.read_csv("data/correlated-variants.csv")
+# clade_corr.to_csv("data/clade-correlated-variants.csv")
+# clade_corr = clade_corr.loc[:, ~clade_corr.columns.str.contains("clade")]
+# stack_clade = clade_corr.stack().sort_values(kind="quicksort")
+# stack_clade[stack_clade > .4]
+# stack_clade.to_csv("data/stacked-clade-correlated-variants.csv")
 # %% Drop highly correlated features
-lt95_X = X.drop(gt95.values, axis=1)
-lt95_X = lt95_X.loc[:, ~lt95_X.columns.str.contains("clade")]
-lt95_X.to_parquet("data/03_95-correlation-threshold_variants-region-sex-age-dataframe.parquet")
-lt95_X = pd.read_parquet("data/03_95-correlation-threshold_variants-region-sex-age-dataframe.parquet")
-sort_corr["C14408T"]["C241T"]
-sort_corr.shape
-not_one_corr.shape
+# Remove one of each highly correlated pair
+lt95_0_X = X.drop(gt95_0.values, axis=1)
+lt90_0_X = X.drop(gt90_0.values, axis=1)
+lt85_0_X = X.drop(gt85_0.values, axis=1)
+lt80_0_X = X.drop(gt80_0.values, axis=1)
+lt70_0_X = X.drop(gt70_0.values, axis=1)
+lt60_0_X = X.drop(gt60_0.values, axis=1)
+lt50_0_X = X.drop(gt50_0.values, axis=1)
+
+# %% Train-test split
+hv_X_train, hv_X_test, hv_y_train, hv_y_test = train_test_split(
+    hv_X,
+    y,
+    test_size=0.33,
+    random_state=42
+)
+
+cols = pd.read_csv(
+    "03_red-target_logistic-regression_top-and-bottom-odds-ratios.csv",
+    index_col=0
+    )
+X
+top_btm = X[cols.squeeze().tolist() + ["covv_patient_age", "gender"]]
+corr_mat = top_btm.corr()
+mask = np.tril(np.ones_like(corr_mat, dtype=bool))
+corr_mat[mask] = np.nan
+stack_corr = corr_mat.stack()
+sort_corr = stack_corr.sort_values(kind="quicksort")
+sort_corr.to_csv("data/03_red-target_sorted-correlation-matrix_top-and-bottom-odds-ratio.csv")
+sort_corr
+# %% Use correlations to get list of variables to be removed
+sort_corr = pd.read_csv("data/03_red-target_sorted-correlation-matrix_top-and-bottom-odds-ratio.csv")
+sort_corr.columns = ["var1", "var2", "corr"]
+sort_corr = sort_corr.set_index(["var1", "var2"])
+gt95_0 = sort_corr[sort_corr["corr"] > .0001].index.get_level_values(0).drop_duplicates()
+lt95_0_X = top_btm.drop(gt95_0.values, axis=1)
+corr_mat = lt.corr()
+mask = np.tril(np.ones_like(corr_mat, dtype=bool))
+corr_mat[mask] = np.nan
+lt95_0_X.corr().stack().sort_values(kind="quicksort")
+lt95_0_X
+hv_X = lt95_0_X.loc[:, lt95_0_X.var() > 0.01]
+hv_X
+X_train, X_test, y_train, y_test = train_test_split(
+    top_btm.iloc[:,:9],
+    y,
+    test_size=0.33,
+    random_state=42
+)
+# %% Fit statsmodels logistic regression
+
+lr = sm.Logit(y_train, X_train)
+fit = lr.fit(maxiter=1000)
+joblib.dump(
+    fit,
+    proj_dir / "models" / "03_red-target_logistic-regression-model_"
+                          "correlation-cutoff-80_statsmodels.pickle"
+)
+fit.summary()
+dir(fit)
+ci = fit.conf_int()
+ci
+# fit
+
+# %% Read in non-zero coefficients
+nz_coefs = pd.read_csv(
+    "03_red-target_logistic-regression-coefs_non-zero-coefficients.csv",
+    index_col=0
+)
+# %% Remove non-zero coefficients
+nz_vars = nz_coefs.index.tolist()
+nz_v = [v for v in nz_coefs if v in lt80_0_X.columns]
+nz_vars
+# %% Remove non-zero coefficients
+nz_lt80_0_X = lt80_0_X[nz_v]
+
+# TODO scikit-learn: 5 curves on ROC plot, 2 plots one for each level (0, 1)
+# TODO statsmodels: pick lowest acceptable threshold and fit model
+# TODO statsmodels: use fit model to plot p-value plots and run LRT
+
+# lt95_X.to_parquet("data/03_95-correlation-threshold_variants-region-sex-age-dataframe.parquet")
+# lt95_X = pd.read_parquet("data/03_95-correlation-threshold_variants-region-sex-age-dataframe.parquet")
 N = 20
 top_corrs = not_one_corr.drop(not_one_corr.index[N//2:-N//2])
 top_corrs = not_one_corr.drop(not_one_corr.index[-N:])
@@ -110,13 +281,6 @@ X_train, X_test, y_train, y_test = train_test_split(
     random_state=42
 )
 
-# %% Train-test split
-lt95_X_train, lt95_X_test, lt95_y_train, lt95_y_test = train_test_split(
-    lt95_X,
-    y,
-    test_size=0.33,
-    random_state=42
-)
 
 # %% Instantiate, fit, and assess scikit-learn model
 correg = LogisticRegression(
@@ -295,7 +459,7 @@ nz_coefs.to_csv(
 
 # %% Load sklearn coefficients
 nz_coefs = pd.read_csv(
-    "03_red-target_logistic-regression-non-zero-coefficients.csv",
+    "03_red-target_logistic-regression-coefs_non-zero-coefficients.csv",
     index_col=0
 )
 
@@ -362,9 +526,11 @@ plt.savefig("plots/" + "l1_vs_no-penalty_feature-selection.png")
 plt.show()
 
 # %% Plot statsmodels coefficients
-nzX = X[nz_coefs.index]
+
+nz_coefs.index in nz_coefs.index
+nzX = lt95_X[nz_coefs.index]
 lr = sm.Logit(y, nzX)
-fit = lr.fit_regularized(alpha=1/logreg.C_)
+fit = lr.fit(maxiter=1000)
 fit.summary()
 err_series = fit.params - fit.conf_int()[0]
 
@@ -461,6 +627,50 @@ plt.ylabel("True Positive Rate")
 plt.savefig("plots/" + prefix + "_" + suffixes[0] + ".png")
 plt.show()
 
+# %% Plot ROC curve
+prefix = "03_77142-vcf_logistic-regression-model"
+
+suffixes = [
+    "no threshold",
+    "95% threshold",
+    "90% threshold",
+    "85% threshold",
+    "80% threshold",
+]
+
+for x, s in zip([X, lt95_0_X, lt90_0_X, lt85_0_X, lt80_0_X], suffixes):
+    X_train, X_test, y_train, y_test = train_test_split(
+        x,
+        y,
+        test_size=0.33,
+        random_state=42
+    )
+    lr = LogisticRegression(penalty='none', solver="saga", max_iter=1e4, n_jobs=-1)
+    lr.fit(X_train, y_train)
+    joblib.dump(lr, prefix + s + ".pickle")
+    pred = lr.predict(X_test)
+    roc_auc_score(y_test, pred)
+    accuracy_score(y_test, pred)
+    print(classification_report(y_test, pred))
+    print(classification_report(y_test, pred))
+    print(confusion_matrix(y_test, pred))
+    precision_score(y_test, pred)
+    recall_score(y_test, pred)
+    f1_score(y_test, pred)
+    pred = lr.predict_proba(X_test)[::, 1]
+    fpr, tpr, _ = roc_curve(y_test, pred)
+    auc = roc_auc_score(y_test, pred)
+    print(auc)
+    plt.plot(fpr, tpr, label=f"{s.replace('-', ', ').title()}")
+    plt.legend(loc=4)
+
+plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
+plt.tight_layout()
+plt.title(f"{TARGET_FULL} Classification Logistic Regression")
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.savefig("plots/" + prefix + "_" + suffixes[0] + ".png")
+plt.show()
 # %% Semi-supervised learning
 # %% Prepare data for scikit-learn
 df = pd.read_parquet(proj_dir / "data/02_semi_knn-kernel-label-spreading-dataframe.parquet")
