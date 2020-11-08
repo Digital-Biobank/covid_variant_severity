@@ -44,74 +44,18 @@ X.head()
 # %% Remove columns with low variance
 y = X[TARGET_NAME]
 X = X.drop([TARGET_NAME], axis=1)
-
 lr = LogisticRegression(penalty="l1", solver="liblinear")
 lr.fit(X, y)
 coef_df = pd.DataFrame(lr.coef_, columns=X.columns)
 ors = coef_df.squeeze().transform("exp")
-ors.idxmax()
-ors.idxmin()
-ors.min()
-ors.max()
+
+ors.to_csv("data/odds_ratios.csv")
+
 top_btm = ors[(ors > 2) | (ors < 0.5)].index
 top_btm_X = X[top_btm]
 top_btm_X.assign(y=y).to_csv("data/top_btm_df.csv")
-lr2 = sm.Logit(y, top_btm_X)
-fit = lr2.fit_regularized(alpha=1)
-lr2 = LogisticRegression()
-lr2.fit(top_btm_X, y)
-np.exp(lr2.coef_).max()
-predictions = lr2.predict(top_btm_X)
-
-# newX = pd.DataFrame({"Constant":np.ones(len(X))}).join(pd.DataFrame(X))
-# MSE = (sum((y-predictions)**2))/(len(newX)-len(newX.columns))
-
-# Note if you don't want to use a DataFrame replace the two lines above with
-newX = np.append(np.ones((len(top_btm_X),1)), top_btm_X, axis=1)
-MSE = (sum((y-predictions)**2))/(len(newX)-len(newX[0]))
-
-resLogit = lr.fit(hc_X_train, hc_y_train)
-
-# Calculate matrix of predicted class probabilities.
-# Check resLogit.classes_ to make sure that sklearn ordered your classes as expected
-predProbs = resLogit.predict_proba(hc_X_train)
-
-# Design matrix -- add column of 1's at the beginning of your X_train matrix
-X_design = np.hstack([np.ones((hc_X_train.shape[0], 1)), hc_X_train])
-
-# Initiate matrix of 0's, fill diagonal with each predicted observation's variance
-V = np.diagflat(np.product(predProbs, axis=1))
-
-# Covariance matrix
-# Note that the @-operater does matrix multiplication in Python 3.5+, so if you're running
-# Python 3.5+, you can replace the covLogit-line below with the more readable:
-# covLogit = np.linalg.inv(X_design.T @ V @ X_design)
-covLogit = np.linalg.inv(np.dot(np.dot(X_design.T, V), X_design))
-print("Covariance matrix: ", covLogit)
-
-# Standard errors
-print("Standard errors: ", np.sqrt(np.diag(covLogit)))
-
-var_b = MSE*(np.linalg.inv(np.dot(newX.T, newX)).diagonal())
-sd_b = np.sqrt(var_b)
-ts_b = params/ sd_b
-
-from scipy import stats
-p_values =[2*(1-stats.t.cdf(np.abs(i), (len(newX)-len(newX[0])))) for i in ts_b]
-
-sd_b = np.round(sd_b,3)
-ts_b = np.round(ts_b,3)
-p_values = np.round(p_values,3)
-params = np.round(params,4)
-
-myDF3 = pd.DataFrame()
-myDF3["Coefficients"],myDF3["Standard Errors"],myDF3["t values"],myDF3["Probabilities"] = [params,sd_b,ts_b,p_values]
-print(myDF3)
-
-
-hv_X = X.loc[:, X.var() > 0]
-hc_X = hv_X.loc[:, hv_X.sum() > 33]
-hc_X
+ors.sort_values()
+top_btm["odds_ratio"].min()
 
 # %% Correlations
 corr_mat = X.corr()
@@ -577,7 +521,7 @@ plt.savefig(
 plt.show()
 
 
-# %% Plot ROC curve
+# %% Figure 1: Plot ROC curve
 prefix = "03_77142-vcf_logistic-regression-model"
 
 suffixes = [
@@ -587,19 +531,28 @@ suffixes = [
     "age-gender",
     "age",
 ]
+
+linestyles = [
+    "-",
+    "--",
+    "-.",
+    ":",
+    "-",
+]
+
+X5 = X
 X4 = X.loc[:, X.columns.str.contains("age|gen|reg|clade")]
 X3 = X.loc[:, X.columns.str.contains("age|gen|reg")]
 X2 = X[["covv_patient_age", "gender"]]
 X1 = X[["covv_patient_age"]]
-
-for x, s in zip([X, X4, X3, X2, X1], suffixes):
+for x, s, l in zip([X5, X4, X3, X2, X1], suffixes, linestyles):
     X_train, X_test, y_train, y_test = train_test_split(
         x,
         y,
         test_size=0.33,
         random_state=42
     )
-    lr = LogisticRegression(penalty='l1', solver="saga", C=logreg.C_[0], max_iter=1e4)
+    lr = LogisticRegression(penalty='l1', solver="liblinear", max_iter=1e4)
     # lr = LogisticRegression(penalty='none', solver="saga", max_iter=1e4, n_jobs=-1)
     lr.fit(X_train, y_train)
     joblib.dump(lr, prefix + s + ".pickle")
@@ -616,15 +569,15 @@ for x, s in zip([X, X4, X3, X2, X1], suffixes):
     fpr, tpr, _ = roc_curve(y_test, pred)
     auc = roc_auc_score(y_test, pred)
     print(auc)
-    plt.plot(fpr, tpr, label=f"{s.replace('-', ', ').title()}")
+    plt.plot(fpr, tpr, label=f"{s.replace('-', ', ').title()}", ls=l)
     plt.legend(loc=4)
 
 plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
-plt.tight_layout()
 plt.title(f"{TARGET_FULL} Classification Logistic Regression")
 plt.xlabel("False Positive Rate")
 plt.ylabel("True Positive Rate")
-plt.savefig("plots/" + prefix + "_" + suffixes[0] + ".png")
+plt.tight_layout()
+plt.savefig("plots/" + prefix + "_" + suffixes[0] + ".png", dpi=300)
 plt.show()
 
 # %% Plot ROC curve

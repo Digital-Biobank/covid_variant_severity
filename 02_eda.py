@@ -225,18 +225,26 @@ plt.tight_layout()
 plt.savefig("plots/00_77142-vcf_mutation-kde-by-status.png")
 plt.show()
 
+# Figure S1
 red_status = df.reset_index().groupby(
     ["is_red", "covv_patient_status"]
 )["pid"].count().reset_index().sort_values(
     ["is_red", "pid"], ascending=False
 )
 colors = ["red" if r else "green" for r in red_status["is_red"]]
-sns.barplot(x="pid", y="covv_patient_status", data=red_status, palette=colors)
+bar = sns.barplot(x="pid", y="covv_patient_status", data=red_status, palette=colors)
+# Define some hatches
+hatches = ['x'] * 3 + ['+'] * 5
+bar.patches
+# Loop over the bars
+for i,thisbar in enumerate(bar.patches):
+    # Set a different hatch for each bar
+    thisbar.set_hatch(hatches[i])
 plt.xlabel("Patient Count")
 plt.ylabel("Status")
 plt.title("Patient count by status")
 plt.tight_layout()
-plt.savefig("plots/00_77142-vcf_patient-bar-by-red.png")
+plt.savefig(f"plots/{pd.Timestamp.today().date()}_fig-s2.png", dpi=300)
 plt.show()
 
 df.reset_index().groupby("region")["pid"].count().sort_values().tail(20).plot.barh(legend=False)
