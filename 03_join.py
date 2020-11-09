@@ -1,10 +1,9 @@
 # %% Imports
-import pathlib
 import pandas as pd
 
-proj_dir = pathlib.Path.home() / "covid" / "vcf"
+df = pd.read_parquet(f"data/2020-10-21_vcf-append.parquet")
 
-# %% Read in cleaned data
+# %% Read in outcome data
 df = pd.read_csv(proj_dir / "data/2020-09-01all_cleaned_GISAID0901pull.csv", index_col=0)
 
 # %% Create pid and binary variables
