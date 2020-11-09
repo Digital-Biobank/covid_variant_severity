@@ -1,10 +1,8 @@
 # %% Imports
 import pandas as pd
 
-df = pd.read_parquet(f"data/2020-10-21_vcf-append.parquet")
-
 # %% Read in outcome data
-df = pd.read_csv(proj_dir / "data/2020-09-01all_cleaned_GISAID0901pull.csv", index_col=0)
+df = pd.read_csv("data/2020-09-01all_cleaned_GISAID0901pull.csv", index_col=0)
 
 # %% Create pid and binary variables
 df = df.assign(
@@ -46,12 +44,8 @@ df = df.assign(
     cat_region=df["region"].map({v: k for k, v in region_key}),
     clade=df["covv_clade"].map({v: k for k, v in clade_key}),
 )
-df.columns
-# %% Read in VCF wide data
-var_df = pd.read_parquet(proj_dir / "data/00_77142-vcf_wide.parquet").fillna(0)
 
-# %% Combined cleaned and variant data
-df = df.join(var_df)
-
-# %% Save cleaned and variant data
-df.to_parquet(proj_dir / "data/01_77142-vcf_wide_join.parquet")
+# %% Combine and save outcome and variant data
+df.join(
+    pd.read_parquet("data/2020-10-21_vcf-concat.parquet")
+    ).to_parquet("data/2020-10-21_vcf-join.parquet")
