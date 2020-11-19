@@ -9,7 +9,6 @@ library(broom)
 df <- read.csv(here(
     "data/2020-10-21_logistic-regression-lasso-selected-features.csv"
     )) %>%
-  select(-pid) %>%
   mutate(y = as.factor(y))
 
 logreg = glm("y ~ .", data = df, family = "binomial")

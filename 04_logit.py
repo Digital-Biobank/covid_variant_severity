@@ -109,7 +109,8 @@ for x, s, l in zip([X, X4, X3, X2, X1], suffixes, linestyles):
     accuracy_score(y_test, pred)
     print(classification_report(y_test, pred))
     print(classification_report(y_test, pred))
-    print(confusion_matrix(y_test, pred))
+    tn, fp, fn, tp = confusion_matrix(y_test, pred).ravel()
+    print(f"{s}:\nTrue negative: {tn}\nFalse positive: {fp}\nFalse negative: {fn}\nTrue positive: {tp}")
     precision_score(y_test, pred)
     recall_score(y_test, pred)
     f1_score(y_test, pred)
@@ -127,3 +128,61 @@ plt.ylabel("True Positive Rate")
 plt.tight_layout()
 plt.savefig("plots/" + prefix + "_" + suffixes[0] + ".png", dpi=300)
 plt.show()
+
+df["pid"].to_csv("data/2020-10-21_pid.txt", index=False)
+df.columns
+
+import statsmodels.api as sm
+table = sm.stats.Table(tab)
+result = table.test_ordinal_association()
+result.pvalue
+
+import pandas as pd
+from scipy.stats import chi2_contingency
+
+p = pd.Series()
+
+df.columns
+var_df = df.set_index("pid").iloc[:, 1:-13]
+var_df.columns
+
+p_list2 = [
+    sm.stats.Table(
+        pd.crosstab(var_df["is_red"], var_df[feature])
+        ).test_ordinal_association()
+    for feature in var_df.columns[1:3]
+    ]
+
+p_list = [chi2_contingency(pd.crosstab(
+    var_df["is_red"],
+    var_df[feature])
+    )[1]
+    for feature in var_df.columns[1:3]
+    ]
+
+
+p_list = [
+    chi2_contingency(
+        pd.crosstab(var_df["is_red"], var_df[feature])
+    )[1]
+    for feature in var_df.columns[1:]
+    ]
+
+p_list
+
+p_list2 = [
+    sm.stats.Table(
+        pd.crosstab(var_df["is_red"], var_df[feature])
+        ).test_ordinal_association().pvalue
+    for feature in var_df.columns[1:]
+    ]
+
+pval_df = pd.DataFrame({
+    "trend_test_pvalue": p_list2,
+    "chi_square_pvalue": p_list
+    },
+    index=var_df.columns[1:]
+    )
+# pval_df["POS"] = pval_df.index.str.replace(r"\D", "")
+
+pval_df.to_csv(f"data/2020-10-21_p-values.csv")
