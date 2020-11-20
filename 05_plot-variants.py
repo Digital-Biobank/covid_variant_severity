@@ -191,14 +191,20 @@ for i in (0, 3, 4, 5, 6, 7, 8, 9, 11, -1):
 #     )
 # plt.show()
 
+fig9 = plt.figure(constrained_layout=False)
+gs1 = fig9.add_gridspec(nrows=3, ncols=1, left=0.05, right=0.48, wspace=0.05)
+f9_ax1 = fig9.add_subplot(gs1[0])
+f9_ax2 = fig9.add_subplot(gs1[1])
+f9_ax3 = fig9.add_subplot(gs1[2])
+
 fig, (ax0, ax1, ax2) = plt.subplots(
     3,
     1,
     figsize=(11, 5.5),
     sharex=True,
-    gridspec_kw={"height_ratios": [2, 6, 1.5]}
+    gridspec_kw={"height_ratios": [3, 7, 2.5]}
 )
-plt.subplots_adjust(wspace=-0.1, hspace=-0.25)
+plt.subplots_adjust(top=0.9,bottom=.2, wspace=-0.1, hspace=0)
 sns.scatterplot(
     x="POS",
     y="neg_log10_chi_square_pvalue",
@@ -223,8 +229,12 @@ record.plot(ax=ax2)
 plt.xlabel('Position')
 ax1.set_ylabel('Negative log10 p-value')
 ax0.set_ylabel('')
-ax1.set_ylim(2**-4.9, 16.6)
-ax0.set_ylim(31, 51)
+box = ax2.get_position()
+box.y0 += .08
+box.y1 += .08
+ax2.set_position(box)
+ax1.set_ylim(10**-4.9, 17.49)
+ax0.set_ylim(34.9, 45.01)
 # ax1.set_yscale('log', basey=10)
 ax1.legend(
     handles=legend_elements,
@@ -317,6 +327,10 @@ ax1.legend(
     prop={'size': 10}
     )
 ax1.minorticks_off()
+box = ax2.get_position()
+box.y0 += .005
+box.y1 += .005
+ax2.set_position(box)
 plt.savefig(
     "plots/all-variants_or-vs-var-pos.png",
     dpi=300,
