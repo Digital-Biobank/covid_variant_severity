@@ -1,15 +1,16 @@
 # %% Imports
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
-
 import joblib
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 from sklearn.metrics import classification_report, confusion_matrix, recall_score, precision_score, \
     f1_score
 from sklearn.metrics import roc_curve, roc_auc_score, accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.feature_selection import SelectFromModel
+import statsmodels.api as sm
+from scipy.stats import chi2_contingency
 
 
 # %% Data
@@ -130,36 +131,8 @@ plt.savefig("plots/" + prefix + "_" + suffixes[0] + ".png", dpi=300)
 plt.show()
 
 df["pid"].to_csv("data/2020-10-21_pid.txt", index=False)
-df.columns
 
-import statsmodels.api as sm
-table = sm.stats.Table(tab)
-result = table.test_ordinal_association()
-result.pvalue
-
-import pandas as pd
-from scipy.stats import chi2_contingency
-
-p = pd.Series()
-
-df.columns
-var_df = df.set_index("pid").iloc[:, 1:-13]
-var_df.columns
-
-p_list2 = [
-    sm.stats.Table(
-        pd.crosstab(var_df["is_red"], var_df[feature])
-        ).test_ordinal_association()
-    for feature in var_df.columns[1:3]
-    ]
-
-p_list = [chi2_contingency(pd.crosstab(
-    var_df["is_red"],
-    var_df[feature])
-    )[1]
-    for feature in var_df.columns[1:3]
-    ]
-
+var_df = df.set_index("pid").iloc[:, :-13]
 
 p_list = [
     chi2_contingency(
@@ -168,7 +141,6 @@ p_list = [
     for feature in var_df.columns[1:]
     ]
 
-p_list
 
 p_list2 = [
     sm.stats.Table(

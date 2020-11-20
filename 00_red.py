@@ -81,7 +81,10 @@ def select_dicts(filename):
     with open(filename, "r") as f:
         for l in f.readlines():
             d = json.loads(l)
-            if d.get("covv_patient_status") in recode_dict.keys():
+            if (
+                d.get("covv_patient_status") in recode_dict.keys()
+                and d.get("covv_host").strip().lower() == "human"
+            ):
                 yield d
 
 df = pd.DataFrame(select_dicts("data/2020-10-21.json"))
@@ -95,8 +98,8 @@ df = df.assign(
 ).set_index("pid")
 
 cols = ["continent", "country", "region", "city"]
-
 df[cols] = df["covv_location"].str.split("/", expand=True).iloc[:, :-1]
 
+pd.Series(df.index).to_csv("data/trimmed-pids.txt")
 df.to_parquet("data/2020-10-21_green-red.parquet")
 df.to_csv("data/2020-10-21_green-red.csv")

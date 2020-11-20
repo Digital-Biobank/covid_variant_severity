@@ -257,11 +257,9 @@ sns.scatterplot(
     )
 plt.xlabel('Variant Frequency')
 plt.ylabel('Odds ratio')
-plt.ylim(2**-4.9, 2**6.3)
+plt.ylim(2**-6.7, 2**6.5)
 plt.xscale('log')
 plt.yscale('log', basey=2)
-plt.gcf().axes[0].yaxis.set_major_formatter(mticker.ScalarFormatter())
-plt.tight_layout()
 plt.legend(
     handles=legend_elements,
     loc="upper right",
@@ -270,8 +268,14 @@ plt.legend(
     fancybox=True,
     prop={'size': 10}
     )
+plt.yticks(
+    (0.015625, 0.0625, 0.25, 1, 4, 16, 32, 64),
+    ("0.0156", "0.0625", "0.25", "1", "4", "16", "32", "64")
+    )
+plt.tight_layout()
 plt.savefig("plots/all-variants_or-vs-var-freq.png", dpi=300)
 plt.show()
+
 
 fig, (ax1, ax2) = plt.subplots(
     2,
@@ -281,7 +285,7 @@ fig, (ax1, ax2) = plt.subplots(
     gridspec_kw={"height_ratios": [5, 1]}
 )
 plt.subplots_adjust(wspace=-0.1, hspace=-0.18)
-sns.scatterplot(
+g = sns.scatterplot(
     x="POS",
     y="odds_ratio",
     hue="mutation_type",
@@ -294,9 +298,16 @@ sns.scatterplot(
 record.plot(ax=ax2)
 plt.xlabel('Position')
 ax1.set_ylabel('Odds ratio')
-ax1.set_ylim(2**-4.9, 2**6.5)
+ax1.set_ylim(2**-6.7, 2**6.5)
 ax1.set_yscale('log', basey=2)
-ax1.yaxis.set_major_formatter(mticker.ScalarFormatter())
+g.set_yticks(
+    [0.015625, 0.0625, 0.25, 1, 4, 16, 32, 64]
+    )
+g.set_yticklabels(
+    ["0.0156", "0.0625", "0.25", "1", "4", "16", "32", "64"]
+    )
+print(ax1.get_yticks())
+print(ax1.get_yticklabels())
 ax1.legend(
     handles=legend_elements,
     loc="upper left",
@@ -305,6 +316,7 @@ ax1.legend(
     fancybox=True,
     prop={'size': 10}
     )
+ax1.minorticks_off()
 plt.savefig(
     "plots/all-variants_or-vs-var-pos.png",
     dpi=300,
