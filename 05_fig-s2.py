@@ -49,7 +49,13 @@ for name, group in plot_df.groupby('Region'):
         markersize=6,
         alpha=0.6
         )
+    print(name)
+    if name == "Oceania":
+        tiks, labs = plt.xticks()
+        plt.xticks(tiks[1:])
+        plt.yticks([0, 1, 2])
     plt.legend(handles=legend_elements)
     plt.ylabel("Count")
     plt.xlabel("")
+    plt.tight_layout()
     plt.savefig(f"{pd.Timestamp.today().date()}_{name}_fig-s2.png", dpi=300)
