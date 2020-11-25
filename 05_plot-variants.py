@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import seaborn as sns
+import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from dna_features_viewer import BiopythonTranslator
 
@@ -58,7 +57,6 @@ pval_ann["mutation_type"] = pval_ann["EFF[*].EFFECT"].map({
 ors = pd.read_csv("data/2020-10-21_odds-ratios.csv", index_col=0)
 
 ors = ors.drop([
-    'male',
     'age',
     'Asia',
     'North America',
@@ -69,7 +67,7 @@ ors = ors.drop([
 )
 
 ors_ann = ors.join(ann)
-ors_ann
+
 ors_ann["mutation_type"] = ors_ann["EFF[*].EFFECT"].map({
     "synonymous_variant": "Silent",
     "upstream_gene_variant": np.nan,
@@ -81,7 +79,7 @@ ors_ann["mutation_type"] = ors_ann["EFF[*].EFFECT"].map({
     "disruptive_inframe_deletion": "Deletion"
  })
 
-var = pd.read_csv("data/variant-freq.csv", index_col=0)
+var = pd.read_csv("data/2020-10-21_variant-freq.csv", index_col=0)
 var
 df = ors_ann.dropna(subset=["mutation_type"]).join(var)
 df = df[~df.index.duplicated(keep='first')]
@@ -201,7 +199,7 @@ ax1.legend(
     )
 ax0.legend().remove()
 plt.savefig(
-    "plots/all-variants_pval-vs-var-pos.png",
+    f"plots/2020-10-21_all-variants_pval-vs-var-pos.png",
     dpi=300,
     bbox_inches = 'tight',
     pad_inches = 0.1
@@ -222,13 +220,13 @@ sns.scatterplot(
     )
 plt.xlabel('Variant Frequency')
 plt.ylabel('Odds ratio')
-plt.ylim(2**-6.7, 2**6.5)
+plt.ylim(2**-7, 2**6)
 plt.xscale('log')
 plt.yscale('log', basey=2)
 plt.legend(
     handles=legend_elements,
-    loc="upper right",
-    ncol=1,
+    loc="upper left",
+    ncol=2,
     framealpha=0.5,
     fancybox=True,
     prop={'size': 10}
@@ -238,7 +236,7 @@ plt.yticks(
     ("0.0156", "0.0625", "0.25", "1", "4", "16", "32", "64")
     )
 plt.tight_layout()
-plt.savefig("plots/all-variants_or-vs-var-freq.png", dpi=300)
+plt.savefig(f"plots/2020-10-21_all-variants_or-vs-var-freq.png", dpi=300)
 plt.show()
 
 fig, (ax1, ax2) = plt.subplots(
@@ -262,7 +260,7 @@ g = sns.scatterplot(
 record.plot(ax=ax2)
 plt.xlabel('Position')
 ax1.set_ylabel('Odds ratio')
-ax1.set_ylim(2**-6.7, 2**6.5)
+ax1.set_ylim(2**-7, 2**6)
 ax1.set_yscale('log', basey=2)
 g.set_yticks(
     [0.015625, 0.0625, 0.25, 1, 4, 16, 32, 64]
@@ -286,32 +284,14 @@ box.y0 += .005
 box.y1 += .005
 ax2.set_position(box)
 plt.savefig(
-    "plots/all-variants_or-vs-var-pos.png",
+    f"plots/2020-10-21_all-variants_or-vs-var-pos.png",
     dpi=300,
     bbox_inches = 'tight',
     pad_inches = 0.1
     )
 plt.show()
 
-# Figure S3
-palette = {"C->T": "orange", "transition": "b", "transversion": 'green'}
-legend_elements = [
-    Line2D([0], [0], marker='o', color='w', label='C->T transition', markerfacecolor='orange', markersize=6),
-    Line2D([0], [0], marker='o', color='w', label='Other transition', markerfacecolor='b', markersize=6),
-    Line2D([0], [0], marker='o', color='w', label='Transversion', markerfacecolor='g', markersize=6),
-]
-sns.scatterplot(x="variant_frequency", y="odds_ratio", hue="trans", data=df, alpha=.6)
-plt.legend(handles=legend_elements)
-plt.xlabel('Variant Frequency')
-plt.ylabel('Odds ratio')
-plt.xscale('log')
-plt.yscale('log', basey=2)
-# plt.axhline(1, linestyle="--")
-plt.gcf().axes[0].yaxis.set_major_formatter(mticker.ScalarFormatter())
-plt.tight_layout()
-plt.savefig("plots/all-variants_or-vs-var-freq_without-line.png", dpi=300)
-plt.show()
-
+# Figure S3a
 df["C->T"] = df.index.str.replace(r'\d', '') == "CT"
 df["transition"] = df.index.astype(str).str.replace(r'\d', '').isin(["CT", "TC", "AG", "GA"])
 df["Transversion"] = df.index.astype(str).str.replace(r'\d', '').isin(["CA", "AC", "TG", "GT", "CG", "GC", "AT", "TA"])
@@ -320,17 +300,10 @@ df["trans"] = np.where(
     "C->T",
     np.where(df["transition"], "transition", "Transversion"
     ))
-df[["C->T", "trans", "transition"]]
-sum(df["trans"] == "C->T")
-sum(df["trans"] != "C->T")
-df["ct_count"] = df.groupby("variant_frequency")["C->T"].count()
-df["ct_count"] 
 df['POS'] = df['POS'].astype(float)
-len(df)
 cut_bins = list(range(0, 30001, 3000))
 df['cut_pos'] = pd.cut(df["POS"], bins=cut_bins, right=False)
 g = df.groupby("cut_pos")[["C->T", "transition", "Transversion"]].sum()
-g
 g.index = [f"{int(i.left/1000)}-{int(i.right/1000)}" for i in g.index]
 g["Other transition"] = g["transition"] - g["C->T"]
 g[["C->T", "Other transition", "Transversion"]].plot.line(style=["^-", "o--", "s:"])
@@ -338,13 +311,13 @@ plt.xlabel("Position (kb)")
 plt.ylabel("Count")
 plt.legend(loc="upper right", ncol=3)
 plt.tight_layout()
-plt.savefig(f"{pd.Timestamp.today().date()}_fig-s3a.png", dpi=300)
+plt.savefig(f"2020-10-21_fig-s3a.png", dpi=300)
 
+# Figure S3b
 cut_bins = [10**-5, 10**-4, 10**-3, 10**-2, 10**-1, 10**-0]
 df['cut_var_freq'] = pd.cut(df["variant_frequency"], bins=cut_bins, right=False)
 g = df.groupby("cut_var_freq")[["C->T", "transition", "Transversion"]].sum()
 g.index = [f"{i.left}-{i.right}" if i.right != 0.0001 else f"<{i.right}" for i in g.index]
-g
 g["Other transition"] = g["transition"] - g["C->T"]
 g[["C->T", "Other transition", "Transversion"]].plot.line(style=["^-", "o--", "s:"])
 locs, labs = plt.xticks()
@@ -352,8 +325,9 @@ plt.xticks(list(locs)[1::2], list(labs)[1::2])
 plt.xlabel("Variant Frequency")
 plt.ylabel("Count")
 plt.tight_layout()
-plt.savefig(f"{pd.Timestamp.today().date()}_fig-s3b.png", dpi=300)
+plt.savefig(f"2020-10-21_fig-s3b.png", dpi=300)
 
+# Figure S3c
 pval_ann = pval_ann.join(var)
 pval_ann = pval_ann[~pval_ann.index.duplicated(keep='first')]
 
@@ -375,20 +349,19 @@ len(pval_ann)
 cut_bins = list(range(0, 30001, 3000))
 pval_ann['cut_pos'] = pd.cut(pval_ann["POS"], bins=cut_bins, right=False)
 g = pval_ann.groupby("cut_pos")[["C->T", "transition", "Transversion"]].sum()
-g
 g.index = [f"{int(i.left/1000)}-{int(i.right/1000)}" for i in g.index]
 g["Other transition"] = g["transition"] - g["C->T"]
 g[["C->T", "Other transition", "Transversion"]].plot.line(style=["^-", "o--", "s:"])
 plt.xlabel("Position (kb)")
 plt.ylabel("Count")
 plt.tight_layout()
-plt.savefig(f"{pd.Timestamp.today().date()}_fig-s3c.png", dpi=300)
+plt.savefig(f"2020-10-21_fig-s3c.png", dpi=300)
 
+# Figure S3d
 cut_bins = [10**-5, 10**-4, 10**-3, 10**-2, 10**-1, 10**-0]
 pval_ann['cut_var_freq'] = pd.cut(pval_ann["variant_frequency"], bins=cut_bins, right=False)
 g = pval_ann.groupby("cut_var_freq")[["C->T", "transition", "Transversion"]].sum()
 g.index = [f"{i.left}-{i.right}" if i.right != 0.0001 else f"<{i.right}" for i in g.index]
-g
 g["Other transition"] = g["transition"] - g["C->T"]
 g[["C->T", "Other transition", "Transversion"]].plot.line(style=["^-", "o--", "s:"])
 locs, labs = plt.xticks()
@@ -396,4 +369,26 @@ plt.xticks(list(locs)[1::2], list(labs)[1::2])
 plt.xlabel("Variant Frequency")
 plt.ylabel("Count")
 plt.tight_layout()
-plt.savefig(f"{pd.Timestamp.today().date()}_fig-s3d.png", dpi=300)
+plt.savefig(f"2020-10-21_fig-s3d.png", dpi=300)
+df.loc[~df["mid"] == True, "variant_frequency"].quantile(.75)
+df.loc[~df["mid"] == True, "variant_frequency"].quantile(.25)
+df.loc[~df["mid"] == True, "variant_frequency"].median()
+df.loc[~df["mid"] == True, "variant_frequency"].min()
+df
+df[df["btm"]]
+df["variant_frequency"].max()
+df["variant_frequency"].median()
+df["variant_frequency"].quantile(.25)
+df.loc[:, "variant_frequency"].gt(.005)
+df[df["mid"].ne(True) & df["variant_frequency"].lt(0.05)]
+df["variant_frequency"].lt(0.05)
+df[df["variant_frequency"].ge(0.05)]
+df[df["variant_frequency"].ge(0.05)]
+df[df["top"].eq(True) & df["variant_frequency"].lt(0.05)]
+df[~df["mid"].eq(True) & df["transition"]].shape
+df["transition"].sum() / len(df)
+df["is_ct"].sum()
+pval_ann.loc["D614G"]
+df.loc[df["btm"] == True].shape
+pval_ann.shape
+pval_ann["variant_frequency"].min()

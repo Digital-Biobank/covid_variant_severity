@@ -1,10 +1,7 @@
 # %% Imports
-import re
-from matplotlib.pyplot import plot
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from matplotlib.lines import Line2D
 
 
@@ -32,7 +29,7 @@ for name, group in plot_df.groupby('Region'):
     plt.legend(handles=legend_elements)
     plt.ylabel("Count")
     plt.xlabel("")
-    plt.savefig(f"{pd.Timestamp.today().date()}_{name}_stacked-area-chart.png", dpi=300)
+    plt.savefig(f"plots/{pd.Timestamp.today().date()}_{name}_stacked-area-chart.png", dpi=300)
 plot_df["Region"] = plot_df.Region.str.strip()
 # Figure S2
 legend_elements = [
@@ -58,4 +55,6 @@ for name, group in plot_df.groupby('Region'):
     plt.ylabel("Count")
     plt.xlabel("")
     plt.tight_layout()
-    plt.savefig(f"{pd.Timestamp.today().date()}_{name}_fig-s2.png", dpi=300)
+    plt.savefig(f"plots/2020-10-21_{name}_fig-s2.png", dpi=300)
+df["continent"].str.lower().str.strip().value_counts()
+df.shape
