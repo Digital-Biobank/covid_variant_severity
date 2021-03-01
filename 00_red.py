@@ -196,7 +196,7 @@ with open('data/2020-10-21_gisaid-patient.json') as f:
     df = pd.DataFrame(json.loads(line) for line in f)
 
 df["covv_patient_status"].str.strip().str.lower().value_counts().to_csv("data/2020-10-21_status-value-counts.csv")
-
+df.shape
 df = df.assign(
     is_red=df["covv_patient_status"].str.strip().str.lower().map(recode_dict),
     pid=df["covv_accession_id"].str.extract(
@@ -205,10 +205,12 @@ df = df.assign(
     ).astype(int)
 ).set_index("pid")
 
-df["is_red"].eq("excluded").sum()
-
-df["is_red"].isna().sum()
-df[df["is_red"].eq("excluded") & df["is_red"].notna()]
+# json
+(
+    df["is_red"].eq("excluded").sum() # 4200
+    + df["is_red"].isna().sum() # 148121
+    + (df["is_red"].ne("excluded") & df["is_red"].notna()).sum() # 3637
+) # 155958
 
 df = df[df["is_red"].ne("excluded") & df["is_red"].notna()]
 

@@ -188,7 +188,7 @@ box.y1 += .08
 ax2.set_position(box)
 ax1.set_ylim(10**-4.9, 17.49)
 ax0.set_ylim(34.9, 45.01)
-# ax1.set_yscale('log', basey=10)
+# ax1.set_yscale('log', base=10)
 ax1.legend(
     handles=legend_elements,
     loc="upper left",
@@ -201,8 +201,8 @@ ax0.legend().remove()
 plt.savefig(
     f"plots/2020-10-21_all-variants_pval-vs-var-pos.png",
     dpi=300,
-    bbox_inches = 'tight',
-    pad_inches = 0.1
+    bbox_inches='tight',
+    pad_inches=0.1
     )
 plt.show()
 
@@ -222,7 +222,7 @@ plt.xlabel('Variant Frequency')
 plt.ylabel('Odds ratio')
 plt.ylim(2**-7, 2**6)
 plt.xscale('log')
-plt.yscale('log', basey=2)
+plt.yscale('log', base=2)
 plt.legend(
     handles=legend_elements,
     loc="upper left",
@@ -261,7 +261,7 @@ record.plot(ax=ax2)
 plt.xlabel('Position')
 ax1.set_ylabel('Odds ratio')
 ax1.set_ylim(2**-7, 2**6)
-ax1.set_yscale('log', basey=2)
+ax1.set_yscale('log', base=2)
 g.set_yticks(
     [0.015625, 0.0625, 0.25, 1, 4, 16, 32, 64]
     )
@@ -278,6 +278,8 @@ ax1.legend(
     fancybox=True,
     prop={'size': 10}
     )
+ax1.axhline(y=2, ls="--")
+ax1.axhline(y=0.5, ls="--")
 ax1.minorticks_off()
 box = ax2.get_position()
 box.y0 += .005
@@ -286,8 +288,8 @@ ax2.set_position(box)
 plt.savefig(
     f"plots/2020-10-21_all-variants_or-vs-var-pos.png",
     dpi=300,
-    bbox_inches = 'tight',
-    pad_inches = 0.1
+    bbox_inches='tight',
+    pad_inches=0.1
     )
 plt.show()
 
@@ -307,6 +309,8 @@ g = df.groupby("cut_pos")[["C->T", "transition", "Transversion"]].sum()
 g.index = [f"{int(i.left/1000)}-{int(i.right/1000)}" for i in g.index]
 g["Other transition"] = g["transition"] - g["C->T"]
 g[["C->T", "Other transition", "Transversion"]].plot.line(style=["^-", "o--", "s:"])
+plt.hlines(y=2, ls="--", xmin=0, xmax=)
+plt.hlines(y=0.5, ls="--")
 plt.xlabel("Position (kb)")
 plt.ylabel("Count")
 plt.legend(loc="upper right", ncol=3)
