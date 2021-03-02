@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib import colors
 from matplotlib.lines import Line2D
 from dna_features_viewer import BiopythonTranslator
 
@@ -54,8 +55,18 @@ pval_ann["mutation_type"] = pval_ann["EFF[*].EFFECT"].map({
     "disruptive_inframe_deletion": "Deletion"
  })
 
-ors = pd.read_csv("data/2020-10-21_odds-ratios.csv", index_col=0)
+df = pd.read_parquet(f"data/2020-10-21_vcf-clean.parquet")
 
+df = df.reset_index().drop_duplicates(subset="pid")
+df
+voi = df[pval_ann.index.tolist() + ["is_red"]]
+
+# Some variants are both mild and severe
+voi = voi.groupby("is_red").sum().T
+# The difference will be the color intensity of red
+voi["diff"] = voi[1] - voi[0]
+
+ors = pd.read_csv("data/2020-10-21_odds-ratios.csv", index_col=0)
 ors = ors.drop([
     'age',
     'Asia',
@@ -80,7 +91,7 @@ ors_ann["mutation_type"] = ors_ann["EFF[*].EFFECT"].map({
  })
 
 var = pd.read_csv("data/2020-10-21_variant-freq.csv", index_col=0)
-var
+
 df = ors_ann.dropna(subset=["mutation_type"]).join(var)
 df = df[~df.index.duplicated(keep='first')]
 df.to_csv("data/2020-10-21_variants.csv")
@@ -101,19 +112,7 @@ df["trans"] = np.where(
     np.where(df["transition"], "transition", "transversion"
     ))
 
-# Figure 1
-palette = {
-    "Silent": "orange",
-    "Missense": "r",
-    "Non-coding": "g",
-    "Frameshift": "violet",
-    "Low-priority": 'gray',
-    "nan": 'black',
-    # "MISSENSE,MISSENSE": 'r',
-    "Nonsense": 'b',
-    # "MISSENSE,SILENT": 'yellow',
-    "Deletion": 'purple',
-}
+# Figure 1A
 
 markers = {
     "Deletion": 'D',
@@ -129,12 +128,12 @@ markers = {
 }
 
 legend_elements = [
-    Line2D([0], [0], marker='D', color='w', label='Deletion', markerfacecolor='purple', markersize=7),
-    Line2D([0], [0], marker='^', color='w', label='Missense', markerfacecolor='r', markersize=7),
-    Line2D([0], [0], marker='>', color='w', label='Frameshift', markerfacecolor='violet', markersize=7),
-    Line2D([0], [0], marker='p', color='w', label='Non-coding', markerfacecolor='g', markersize=7),
-    Line2D([0], [0], marker='X', color='w', label='Nonsense', markerfacecolor='b', markersize=7),
-    Line2D([0], [0], marker='s', color='w', label='Silent', markerfacecolor='orange', markersize=7),
+    Line2D([0], [0], marker='D', color='w', markeredgecolor="k", label='Deletion', markerfacecolor='w', markersize=7),
+    Line2D([0], [0], marker='^', color='w', markeredgecolor="k", label='Missense', markerfacecolor='w', markersize=7),
+    Line2D([0], [0], marker='>', color='w', markeredgecolor="k", label='Frameshift', markerfacecolor='w', markersize=7),
+    Line2D([0], [0], marker='p', color='w', markeredgecolor="k", label='Non-coding', markerfacecolor='w', markersize=7),
+    Line2D([0], [0], marker='X', color='w', markeredgecolor="k", label='Nonsense', markerfacecolor='w', markersize=7),
+    Line2D([0], [0], marker='s', color='w', markeredgecolor="k", label='Silent', markerfacecolor='w', markersize=7),
 ]
 
 record = BiopythonTranslator().translate_record("NC_045512.2.gb")
@@ -150,6 +149,18 @@ dict(enumerate(record.features))
 for i in (0, 3, 4, 5, 6, 7, 8, 9, 11, -1):
     record.features[i].label = None
 
+color_min = pval_ann["color"].min()
+color_max = pval_ann["color"].max()
+color_mid = 0
+tsn = colors.TwoSlopeNorm(vcenter=color_mid, vmin=color_min, vmax=color_max)
+color_data = tsn(pval_ann["color"])
+color_min = df["diff"].min()
+color_max = df["diff"].max()
+color_mid = 0
+tsn = colors.TwoSlopeNorm(vcenter=color_mid, vmin=color_min, vmax=color_max)
+color_df = tsn(df["diff"])
+rdgn = sns.diverging_palette(h_neg=250, h_pos=15, s=99, l=55, sep=3, as_cmap=True)
+
 fig, (ax0, ax1, ax2) = plt.subplots(
     3,
     1,
@@ -157,25 +168,27 @@ fig, (ax0, ax1, ax2) = plt.subplots(
     sharex=True,
     gridspec_kw={"height_ratios": [3, 7, 2.5]}
 )
-plt.subplots_adjust(top=0.9,bottom=.2, wspace=-0.1, hspace=0)
+plt.subplots_adjust(top=0.9, bottom=.2, wspace=-0.1, hspace=0)
 sns.scatterplot(
     x="POS",
     y="neg_log10_chi_square_pvalue",
-    hue="mutation_type",
+    hue=color_data,
     data=pval_ann,
     style="mutation_type",
     markers=markers,
-    palette=palette,
+    palette=rdgn,
+    edgecolor='k',
     ax=ax0
     )
 sns.scatterplot(
     x="POS",
     y="neg_log10_chi_square_pvalue",
-    hue="mutation_type",
+    hue=color_data,
     data=pval_ann,
     style="mutation_type",
     markers=markers,
-    palette=palette,
+    palette=rdgn,
+    edgecolor='k',
     ax=ax1
     )
 record.plot(ax=ax2)
@@ -206,21 +219,25 @@ plt.savefig(
     )
 plt.show()
 
+# Figure 1B
 df.loc[df["mid"], "mutation_type"] = "Low-priority"
 df.loc[df["mid"], "is_ct"] = "Low-priority"
 df.loc[df["mid"], "transition"] = "Low-priority"
 sns.scatterplot(
     x="variant_frequency",
     y="odds_ratio",
-    hue="mutation_type",
+    hue=color_df,
     data=df,
     style="mutation_type",
     markers=markers,
-    palette=palette
+    palette=rdgn,
+    edgecolor='k',
     )
 plt.xlabel('Variant Frequency')
 plt.ylabel('Odds ratio')
 plt.ylim(2**-7, 2**6)
+plt.hlines(y=2, ls="--", xmin=0, xmax=df["variant_frequency"].max())
+plt.hlines(y=0.5, ls="--", xmin=0, xmax=df["variant_frequency"].max())
 plt.xscale('log')
 plt.yscale('log', base=2)
 plt.legend(
@@ -239,6 +256,7 @@ plt.tight_layout()
 plt.savefig(f"plots/2020-10-21_all-variants_or-vs-var-freq.png", dpi=300)
 plt.show()
 
+# Figure 1B
 fig, (ax1, ax2) = plt.subplots(
     2,
     1,
@@ -250,11 +268,12 @@ plt.subplots_adjust(wspace=-0.1, hspace=-0.18)
 g = sns.scatterplot(
     x="POS",
     y="odds_ratio",
-    hue="mutation_type",
+    hue=color_df,
     data=df,
     style="mutation_type",
     markers=markers,
-    palette=palette,
+    palette=rdgn,
+    edgecolor='k',
     ax=ax1
     )
 record.plot(ax=ax2)
@@ -309,13 +328,13 @@ g = df.groupby("cut_pos")[["C->T", "transition", "Transversion"]].sum()
 g.index = [f"{int(i.left/1000)}-{int(i.right/1000)}" for i in g.index]
 g["Other transition"] = g["transition"] - g["C->T"]
 g[["C->T", "Other transition", "Transversion"]].plot.line(style=["^-", "o--", "s:"])
-plt.hlines(y=2, ls="--", xmin=0, xmax=)
-plt.hlines(y=0.5, ls="--")
 plt.xlabel("Position (kb)")
 plt.ylabel("Count")
 plt.legend(loc="upper right", ncol=3)
 plt.tight_layout()
 plt.savefig(f"2020-10-21_fig-s3a.png", dpi=300)
+plt.show()
+
 
 # Figure S3b
 cut_bins = [10**-5, 10**-4, 10**-3, 10**-2, 10**-1, 10**-0]

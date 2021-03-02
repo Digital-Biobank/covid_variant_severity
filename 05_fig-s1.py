@@ -14,10 +14,10 @@ red_status = df.reset_index().groupby(
     ["is_red", "pid"], ascending=False
 )
 red_status = red_status[red_status["pid"] > 19]
-colors = pd.Series(["red" if r else "green" for r in red_status["is_red"]])
+colors = pd.Series(["red" if r else "blue" for r in red_status["is_red"]])
 bar = sns.barplot(x="pid", y="covv_patient_status", data=red_status, palette=colors)
 # Define some hatches
-hatches = colors.str.replace("red", "+").str.replace("green", "x")
+hatches = colors.str.replace("red", "x").str.replace("blue", "+")
 # Loop over the bars
 for i,thisbar in enumerate(bar.patches):
     # Set a different hatch for each bar
