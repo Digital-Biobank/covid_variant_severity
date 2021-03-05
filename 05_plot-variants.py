@@ -41,6 +41,7 @@ pval_df = pd.read_csv(f"data/2020-10-21_p-values.csv", index_col=0)
 pval_df = pval_df.assign(
     neg_log10_trend_test_pvalue=-np.log10(pval_df["trend_test_pvalue"]),
     neg_log10_chi_square_pvalue=-np.log10(pval_df["chi_square_pvalue"]),
+    neg_log10_odds_ratio_pvalue=-np.log10(pval_df["odds_ratio_pvalue"]),
 )
 
 pval_ann = pval_df.join(ann)
@@ -94,8 +95,11 @@ voi["diff"] = voi[1] - voi[0]
 
 ors = pd.read_csv("data/2020-10-21_odds-ratios.csv", index_col=0)
 ors = ors.drop([
+    "pid",
     'age',
     'Asia',
+    "Europe",
+    "male",
     'North America',
     'South America',
 ]).rename(
@@ -255,6 +259,9 @@ plt.savefig(
     )
 plt.show()
 
+pval_ann.sort_values(by="neg_log10_odds_ratio_pvalue").head(10)[["neg_log10_odds_ratio_pvalue","color", "mutation_type", "POS"]]
+pval_ann.sort_values(by="neg_log10_chi_square_pvalue").head(10)[["neg_log10_chi_square_pvalue","color", "mutation_type", "POS"]]
+pval_ann
 # Figure 1B
 df.loc[df["mid"], "mutation_type"] = "Low-priority"
 df.loc[df["mid"], "is_ct"] = "Low-priority"
@@ -391,8 +398,16 @@ plt.show()
 pval_ann = pval_ann[~pval_ann.index.duplicated(keep='first')]
 
 pval_ann["C->T"] = pval_ann.index.str.replace(r'\d', '', regex=True) == "CT"
-pval_ann["transition"] = pval_ann.index.astype(str).str.replace(r'\d', '', regex=True).isin(["CT", "TC", "AG", "GA"])
-pval_ann["Transversion"] = pval_ann.index.astype(str).str.replace(r'\d', '', regex=True).isin(["CA", "AC", "TG", "GT", "CG", "GC", "AT", "TA"])
+pval_ann["transition"] = pval_ann.index.astype(str).str.replace(
+    r'\d',
+    '',
+    regex=True
+).isin(["CT", "TC", "AG", "GA"])
+pval_ann["Transversion"] = pval_ann.index.astype(str).str.replace(
+    r'\d',
+    '',
+    regex=True
+).isin(["CA", "AC", "TG", "GT", "CG", "GC", "AT", "TA"])
 pval_ann["trans"] = np.where(
     pval_ann["C->T"],
     "C->T",
@@ -403,7 +418,7 @@ sum(pval_ann["trans"] == "C->T")
 sum(pval_ann["trans"] != "C->T")
 pval_ann = pval_ann.join(var)
 pval_ann["ct_count"] = pval_ann.groupby("variant_frequency")["C->T"].count()
-pval_ann["ct_count"] 
+pval_ann["ct_count"]
 pval_ann['POS'] = pval_ann['POS'].astype(float)
 len(pval_ann)
 cut_bins = list(range(0, 30001, 3000))
@@ -433,21 +448,30 @@ plt.tight_layout()
 plt.savefig(f"2020-10-21_fig-s3d.png", dpi=300)
 plt.show()
 
-df.loc[~df["mid"] == True, "variant_frequency"].quantile(.75)
-df.loc[~df["mid"] == True, "variant_frequency"].quantile(.25)
-df.loc[~df["mid"] == True, "variant_frequency"].median()
-df.loc[~df["mid"] == True, "variant_frequency"].min()
-df
+df.loc[~df["mid"], "variant_frequency"].quantile(.75)
+df.loc[~df["mid"], "variant_frequency"].quantile(.25)
+df.loc[~df["mid"], "variant_frequency"].median()
+df.loc[~df["mid"], "variant_frequency"].min()
+df.loc[~df["mid"]]
+pval_ann
+df[df["btm"]]
 df[df["btm"]]
 df["variant_frequency"].max()
 df["variant_frequency"].median()
 df["variant_frequency"].quantile(.25)
 df.loc[:, "variant_frequency"].gt(.005)
-df[df["mid"].ne(True) & df["variant_frequency"].lt(0.05)]
 df["variant_frequency"].lt(0.05)
 df[df["variant_frequency"].ge(0.05)]
 df[df["variant_frequency"].ge(0.05)]
+
+# Supplemental Figure 1
+today = pd.to_datetime("today").date()
+df[df["mid"].ne(True) & df["variant_frequency"].lt(0.05)]
 df[df["top"].eq(True) & df["variant_frequency"].lt(0.05)]
+df[df["btm"].eq(True) & df["variant_frequency"].lt(0.05)]
+df[df["mid"].ne(True) & df["variant_frequency"].lt(0.05)].to_csv(f"{today}_highest-and-lowest-odds-ratios.csv")
+df[df["top"].eq(True) & df["variant_frequency"].lt(0.05)].to_csv(f"{today}_highest-odds-ratios.csv")
+df[df["btm"].eq(True) & df["variant_frequency"].lt(0.05)].to_csv(f"{today}_lowest-odds-ratios.csv")
 df[~df["mid"].eq(True) & df["transition"]].shape
 df["transition"].sum() / len(df)
 df.loc[df["btm"] == True].shape

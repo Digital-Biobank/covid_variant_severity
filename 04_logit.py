@@ -331,7 +331,8 @@ plot_learning_curve(
     X4,
     y,
     cv=5,
-    random_state=1
+    random_state=1,
+    ylim=(0, 1)
 )
 plt.savefig(f"{today}_learning-curve.png")
 plt.show()
