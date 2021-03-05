@@ -57,4 +57,3 @@ for name, group in plot_df.groupby('Region'):
     plt.tight_layout()
     plt.savefig(f"plots/2020-10-21_{name}_fig-s2.png", dpi=300)
 df["continent"].str.lower().str.strip().value_counts()
-df.shape

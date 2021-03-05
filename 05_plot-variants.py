@@ -58,8 +58,34 @@ pval_ann["mutation_type"] = pval_ann["EFF[*].EFFECT"].map({
 df = pd.read_parquet(f"data/2020-10-21_vcf-clean.parquet")
 
 df = df.reset_index().drop_duplicates(subset="pid")
+df.drop(["is_red", "GH", "GR", "L", "O", "S", "V"], axis="columns")
+df.iloc[:, 2:-13]
 df
 voi = df[pval_ann.index.tolist() + ["is_red"]]
+pval_ann = pval_ann.reset_index().drop_duplicates(subset="index")
+sig_pval_ann = pval_ann[pval_ann["odds_ratio_pvalue"].lt(0.05)]
+var = pd.read_csv("data/2020-10-21_variant-freq.csv", index_col=0)
+var
+sig_pval_ann_var = sig_pval_ann.set_index("index").join(var)
+
+# Supplemental Table 1
+sig_pval_ann_var[[
+    "aa",
+    "mutation_type",
+    "variant_frequency",
+    "lower",
+    "odds_ratio",
+    "upper",
+    "odds_ratio_pvalue"
+]].sort_values("odds_ratio")[:20].append(sig_pval_ann_var[[
+    "aa",
+    "lower",
+    "mutation_type",
+    "variant_frequency",
+    "odds_ratio",
+    "upper",
+    "odds_ratio_pvalue"
+]].sort_values("odds_ratio")[-20:]).to_excel("top_btm_var.xlsx")
 
 # Some variants are both mild and severe
 voi = voi.groupby("is_red").sum().T
@@ -90,7 +116,6 @@ ors_ann["mutation_type"] = ors_ann["EFF[*].EFFECT"].map({
     "disruptive_inframe_deletion": "Deletion"
  })
 
-var = pd.read_csv("data/2020-10-21_variant-freq.csv", index_col=0)
 
 df = ors_ann.dropna(subset=["mutation_type"]).join(var)
 df = df[~df.index.duplicated(keep='first')]
@@ -98,14 +123,17 @@ df.to_csv("data/2020-10-21_variants.csv")
 df["or_lt_two"] = df["odds_ratio"] < 2
 df["or_gt_half"] = df["odds_ratio"] > .5
 
-df["is_ct"] = df.index.str.replace(r'\d', '') == "CT"
-df["transition"] = df.index.astype(str).str.replace(r'\d', '').isin(["CT", "TC", "AG", "GA"])
+df["is_ct"] = df.index.str.replace(r'\d', '', regex=True) == "CT"
+df["transition"] = df.index.astype(str).str.replace(
+    r'\d',
+    '',
+    regex=True
+).isin(["CT", "TC", "AG", "GA"])
 
 df["btm"] = ~df["or_gt_half"]
 df["top"] = ~df["or_lt_two"]
 df["mid"] = df["or_gt_half"] & df["or_lt_two"]
 # df.loc[(df["mutation_type"] == "nan") & ~df["mid"], "mutation_type"] = ["MISSENSE", "DELETION", "DELETION", "DELETION", "DELETION", "MISSENSE", "DELETION"]
-
 df["trans"] = np.where(
     df["is_ct"],
     "C->T",
@@ -137,6 +165,8 @@ legend_elements = [
 ]
 
 record = BiopythonTranslator().translate_record("NC_045512.2.gb")
+for f in record.features:
+    print(f)
 for f in record.features[3:34]:
     record.features.remove(f)
 for f in record.features[5:24:2]:
@@ -149,16 +179,22 @@ dict(enumerate(record.features))
 for i in (0, 3, 4, 5, 6, 7, 8, 9, 11, -1):
     record.features[i].label = None
 
+voi = voi.reset_index().drop_duplicates().set_index("index")
+pval_ann = pval_ann.set_index("index")
+pval_ann = pval_ann.join(voi["diff"].rename("color"))
+df = df.join(voi["diff"].rename("color"))
+
 color_min = pval_ann["color"].min()
 color_max = pval_ann["color"].max()
 color_mid = 0
 tsn = colors.TwoSlopeNorm(vcenter=color_mid, vmin=color_min, vmax=color_max)
 color_data = tsn(pval_ann["color"])
-color_min = df["diff"].min()
-color_max = df["diff"].max()
+
+color_min = df["color"].min()
+color_max = df["color"].max()
 color_mid = 0
 tsn = colors.TwoSlopeNorm(vcenter=color_mid, vmin=color_min, vmax=color_max)
-color_df = tsn(df["diff"])
+color_df = tsn(df["color"])
 rdgn = sns.diverging_palette(h_neg=250, h_pos=15, s=99, l=55, sep=3, as_cmap=True)
 
 fig, (ax0, ax1, ax2) = plt.subplots(
@@ -313,9 +349,9 @@ plt.savefig(
 plt.show()
 
 # Figure S3a
-df["C->T"] = df.index.str.replace(r'\d', '') == "CT"
-df["transition"] = df.index.astype(str).str.replace(r'\d', '').isin(["CT", "TC", "AG", "GA"])
-df["Transversion"] = df.index.astype(str).str.replace(r'\d', '').isin(["CA", "AC", "TG", "GT", "CG", "GC", "AT", "TA"])
+df["C->T"] = df.index.str.replace(r'\d', '', regex=True) == "CT"
+df["transition"] = df.index.astype(str).str.replace(r'\d', '', regex=True).isin(["CT", "TC", "AG", "GA"])
+df["Transversion"] = df.index.astype(str).str.replace(r'\d', '', regex=True).isin(["CA", "AC", "TG", "GT", "CG", "GC", "AT", "TA"])
 df["trans"] = np.where(
     df["C->T"],
     "C->T",
@@ -349,14 +385,14 @@ plt.xlabel("Variant Frequency")
 plt.ylabel("Count")
 plt.tight_layout()
 plt.savefig(f"2020-10-21_fig-s3b.png", dpi=300)
+plt.show()
 
 # Figure S3c
-pval_ann = pval_ann.join(var)
 pval_ann = pval_ann[~pval_ann.index.duplicated(keep='first')]
 
-pval_ann["C->T"] = pval_ann.index.str.replace(r'\d', '') == "CT"
-pval_ann["transition"] = pval_ann.index.astype(str).str.replace(r'\d', '').isin(["CT", "TC", "AG", "GA"])
-pval_ann["Transversion"] = pval_ann.index.astype(str).str.replace(r'\d', '').isin(["CA", "AC", "TG", "GT", "CG", "GC", "AT", "TA"])
+pval_ann["C->T"] = pval_ann.index.str.replace(r'\d', '', regex=True) == "CT"
+pval_ann["transition"] = pval_ann.index.astype(str).str.replace(r'\d', '', regex=True).isin(["CT", "TC", "AG", "GA"])
+pval_ann["Transversion"] = pval_ann.index.astype(str).str.replace(r'\d', '', regex=True).isin(["CA", "AC", "TG", "GT", "CG", "GC", "AT", "TA"])
 pval_ann["trans"] = np.where(
     pval_ann["C->T"],
     "C->T",
@@ -365,6 +401,7 @@ pval_ann["trans"] = np.where(
 pval_ann[["C->T", "trans", "transition"]]
 sum(pval_ann["trans"] == "C->T")
 sum(pval_ann["trans"] != "C->T")
+pval_ann = pval_ann.join(var)
 pval_ann["ct_count"] = pval_ann.groupby("variant_frequency")["C->T"].count()
 pval_ann["ct_count"] 
 pval_ann['POS'] = pval_ann['POS'].astype(float)
@@ -379,6 +416,7 @@ plt.xlabel("Position (kb)")
 plt.ylabel("Count")
 plt.tight_layout()
 plt.savefig(f"2020-10-21_fig-s3c.png", dpi=300)
+plt.show()
 
 # Figure S3d
 cut_bins = [10**-5, 10**-4, 10**-3, 10**-2, 10**-1, 10**-0]
@@ -393,6 +431,8 @@ plt.xlabel("Variant Frequency")
 plt.ylabel("Count")
 plt.tight_layout()
 plt.savefig(f"2020-10-21_fig-s3d.png", dpi=300)
+plt.show()
+
 df.loc[~df["mid"] == True, "variant_frequency"].quantile(.75)
 df.loc[~df["mid"] == True, "variant_frequency"].quantile(.25)
 df.loc[~df["mid"] == True, "variant_frequency"].median()
@@ -410,8 +450,6 @@ df[df["variant_frequency"].ge(0.05)]
 df[df["top"].eq(True) & df["variant_frequency"].lt(0.05)]
 df[~df["mid"].eq(True) & df["transition"]].shape
 df["transition"].sum() / len(df)
-df["is_ct"].sum()
-pval_ann.loc["D614G"]
 df.loc[df["btm"] == True].shape
-pval_ann.shape
+pval_ann.odds_ratio.min()
 pval_ann["variant_frequency"].min()

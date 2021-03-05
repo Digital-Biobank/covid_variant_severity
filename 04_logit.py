@@ -35,7 +35,7 @@ df["age"] = min_max_scaler.fit_transform(
 df = df.dropna(subset=["age", "male"])
 df = df.dropna(thresh=1, axis="columns")
 df = df.fillna(0)
-
+df.groupby("is_red")["pid"].count()
 # %% Prepare data for logistic regression
 y = df["is_red"]
 X = df.drop([
@@ -364,17 +364,25 @@ t_list = [
     ]
 
 t_out = [(t.oddsratio, t.oddsratio_confint(), t.oddsratio_pvalue()) for t in t_list]
-t_out[0]
+oddsratio, confint, pvalue = zip(*t_out)
+low, upp = zip(*confint)
 
 pval_df = pd.DataFrame({
     "trend_test_pvalue": p_list2,
-    "chi_square_pvalue": p_list
+    "chi_square_pvalue": p_list,
+    "lower": low,
+    "odds_ratio": oddsratio,
+    "upper": upp,
+    "odds_ratio_pvalue": pvalue,
     },
     index=var_df.columns[1:]
     )
 
 pval_df.to_csv(f"data/2020-10-21_p-values.csv")
-
+X.iloc[:,1:-6]
+sig = pval_df["odds_ratio_pvalue"].lt(0.021)
+gt2 = pval_df["odds_ratio"].gt(2)
+lt_half = pval_df["odds_ratio"].lt(0.5)
+pval_df[gt2 | lt_half].shape
 # %%
 df[df.iloc[:, 2:-13].sum(axis=1).gt(0)]
-2853/3386

@@ -28,3 +28,4 @@ plt.title("Patient count by status")
 plt.tight_layout()
 plt.savefig(f"plots/2020-10-21_fig-s1.png", dpi=300)
 plt.show()
+df
