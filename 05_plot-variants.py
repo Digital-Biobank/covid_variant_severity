@@ -235,8 +235,8 @@ box = ax2.get_position()
 box.y0 += .08
 box.y1 += .08
 ax2.set_position(box)
-ax1.set_ylim(10**-4.9, 18.49)
-ax0.set_ylim(35.9, 48.01)
+ax1.set_ylim(10**-4.9, 19.99)
+ax0.set_ylim(35.01, 48)
 # ax1.set_yscale('log', base=10)
 ax1.legend(
     handles=legend_elements,
