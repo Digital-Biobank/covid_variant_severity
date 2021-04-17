@@ -19,6 +19,7 @@ from sklearn.model_selection import train_test_split, learning_curve
 from sklearn.preprocessing import MinMaxScaler
 
 today = pd.Timestamp.today().date()
+prefix = f"2020-10-21_vcf_logistic-regression-model"
 
 # %% Data
 df = pd.read_parquet(f"data/2020-10-21_vcf-clean.parquet")
@@ -29,7 +30,7 @@ df = df.reset_index().drop_duplicates(subset="pid")
 min_max_scaler = MinMaxScaler()
 df["age"] = min_max_scaler.fit_transform(
     df["age"].values.reshape(-1, 1)
-    )
+)
 
 # %% Drop missing values
 df = df.dropna(subset=["age", "male"])
@@ -38,7 +39,7 @@ df = df.fillna(0)
 df.groupby("is_red")["pid"].count()
 # %% Prepare data for logistic regression
 y = df["is_red"]
-X = df.drop([
+X = df.set_index("pid").drop([
     "is_red",
     'GH',
     'GR',
@@ -53,71 +54,54 @@ X.assign(y=y).to_csv(f"data/2020-10-21_vcf-model.csv")
 var_freq = X.sum() / len(X)
 var_freq.rename("variant_frequency").to_csv(
     f"data/2020-10-21_variant-freq.csv"
-    )
+)
 
 # %% Fit logistic regression
+# saga does not converge
+# lbfgs, newton-cg, and sag do not support L1 penalty
 lr = LogisticRegressionCV(penalty="l1", Cs=[1], cv=5, solver="liblinear")
 lr.fit(X, y)
-model = SelectFromModel(lr, prefit=True)
-indices = model.get_support()
-colnames = X.columns[indices]
-colnames
-lr.scores_[1].mean()
-X_new = X.loc[:, indices]
-X_new.assign(y=y).to_csv(
+model_lasso = SelectFromModel(lr, prefit=True)
+indices_lasso = model_lasso.get_support()
+colnames_lasso = X.columns[indices_lasso]
+colnames_lasso
+X_new_lasso = X.loc[:, indices_lasso]
+X_new_lasso.assign(y=y).to_csv(
     f"data/2020-10-21_logistic-regression-lasso-selected-features.csv"
-    )
+)
+
+# lbfgs and saga do not converge
+# newton-cg converges
+lr_no_penalty = LogisticRegression(penalty="none", solver="newton-cg")
+lr_no_penalty.fit(X, y)
+model_no_penalty = SelectFromModel(lr_no_penalty, prefit=True)
+indices_no_penalty = model_no_penalty.get_support()
+colnames_no_penalty = X.columns[indices_no_penalty]
+X_new_no_penalty = X.loc[:, indices_no_penalty]
+X_new_no_penalty.assign(y=y).to_csv(
+    f"data/2020-10-21_logistic-regression-no-penalty-features.csv"
+)
+X
+X.iloc[:, :-7]
+X_new_no_penalty.iloc[:, :-2]
+X_new_lasso.iloc[:, :-5]
+variants_lasso = X_new_lasso.iloc[:, :-5].columns
+"C28311T" in variants_lasso
+"G22992A" in X.columns
+
+joblib.dump(lr, f"models/{prefix}_age-gender-region-variant.pickle")
 
 coef_df = pd.DataFrame(lr.coef_, columns=X.columns)
 ors = coef_df.squeeze().transform("exp")
 ors = ors[ors != 1]
-ors.sort_values().tail(20)
 ors.to_csv(f"data/2020-10-21_odds-ratios.csv")
 
-# Define functions need for Figure 2
+ors[:-5].sort_values().head(20).append(ors[:-5].sort_values().tail(20)).to_csv(
+    "data/2020-10-21_top-and-btm-ors.csv"
+)
 
-def bootstrap_auc(clf, X_train, y_train, X_test, y_test, nsamples=1000):
-    auc_values = []
-    for b in range(nsamples):
-        idx = np.random.randint(X_train.shape[0], size=X_train.shape[0])
-        clf.fit(X_train[idx], y_train[idx])
-        pred = clf.predict_proba(X_test)[:, 1]
-        roc_auc = roc_auc_score(y_test.ravel(), pred.ravel())
-        auc_values.append(roc_auc)
-    return np.percentile(auc_values, (2.5, 97.5))
-
-def permutation_test(clf, X_train, y_train, X_test, y_test, nsamples=1000):
-    idx1 = np.arange(X_train.shape[0])
-    idx2 = np.arange(X_test.shape[0])
-    auc_values = np.empty(nsamples)
-    for b in range(nsamples):
-        np.random.shuffle(idx1)  # Shuffles in-place
-        np.random.shuffle(idx2)
-        clf.fit(X_train, y_train[idx1])
-        pred = clf.predict_proba(X_test)[:, 1]
-        roc_auc = roc_auc_score(y_test[idx2].ravel(), pred.ravel())
-        auc_values[b] = roc_auc
-    clf.fit(X_train, y_train)
-    pred = clf.predict_proba(X_test)[:, 1]
-    roc_auc = roc_auc_score(y_test.ravel(), pred.ravel())
-    return roc_auc, np.mean(auc_values >= roc_auc)
-
-def permutation_test_between_clfs(y_test, pred_proba_1, pred_proba_2, nsamples=1000):
-    auc_differences = []
-    auc1 = roc_auc_score(y_test.ravel(), pred_proba_1.ravel())
-    auc2 = roc_auc_score(y_test.ravel(), pred_proba_2.ravel())
-    observed_difference = auc1 - auc2
-    for _ in range(nsamples):
-        mask = np.random.randint(2, size=len(pred_proba_1.ravel()))
-        p1 = np.where(mask, pred_proba_1.ravel(), pred_proba_2.ravel())
-        p2 = np.where(mask, pred_proba_2.ravel(), pred_proba_1.ravel())
-        auc1 = roc_auc_score(y_test.ravel(), p1)
-        auc2 = roc_auc_score(y_test.ravel(), p2)
-        auc_differences.append(auc1 - auc2)
-    return observed_difference, np.mean(auc_differences >= observed_difference)
 
 # %% Figure 2: Plot ROC curve
-prefix = f"2020-10-21_vcf_logistic-regression-model"
 
 suffixes = [
     "age-gender-region-variant",
@@ -139,7 +123,7 @@ clades = [
 ]
 
 continents = [
-    "Asia", "Europe", "North America", "South America", "Oceania" 
+    "Asia", "Europe", "North America", "South America", "Oceania"
 ]
 
 X4 = df[["age", "male"] + continents + clades]
@@ -160,20 +144,21 @@ for x, s, l in zip([X, X4, X3, X2, X1], suffixes, linestyles):
     pred = lr.predict(X_test)
     print("cross-val scores:", lr.scores_)
     print("cross-val score mean:", lr.scores_[1].mean())
-    accuracy_score(y_test, pred)
+    print("cross-val score standard deviation:", lr.scores_[1].std())
+    print("accuracy: ", accuracy_score(y_test, pred))
     print(classification_report(y_test, pred))
     print(classification_report(y_test, pred))
     tn, fp, fn, tp = confusion_matrix(y_test, pred).ravel()
-    odds_ratio = (tp*tn)/(fp*tn)
-    se1 = np.sqrt(1/tn + 1/fp + 1/fn + 1/tp)
-    top = odds_ratio + se1*1.96
-    btm = odds_ratio - se1*1.96
-    se2 = (top - btm)/(2*1.96)
+    odds_ratio = (tp * tn) / (fp * fn)
+    se1 = np.sqrt(1 / tn + 1 / fp + 1 / fn + 1 / tp)
+    top = odds_ratio + se1 * 1.96
+    btm = odds_ratio - se1 * 1.96
+    se2 = (top - btm) / (2 * 1.96)
     print("se1", se1, "se2", se2)
     z = np.log(odds_ratio) / se2
-    p = np.exp(-.717*z - .416*z**2)
-    sens = tp/(tp+fn)
-    spec = tn/(tn+fp)
+    p = np.exp(-.717 * z - .416 * z ** 2)
+    sens = tp / (tp + fn)
+    spec = tn / (tn + fp)
     neg_lr = (1 - sens) / spec
     print("negative likelihood ratio:", neg_lr)
     print(f"odds ratio: {odds_ratio:.1f} ({btm:.1f}-{top:.1f})")
@@ -186,21 +171,27 @@ for x, s, l in zip([X, X4, X3, X2, X1], suffixes, linestyles):
     fpr, tpr, _ = roc_curve(y_test, pred)
     auc = roc_auc_score(y_test, pred)
     print(auc)
-    q1 = auc/(2-auc)
-    q2 = 2*auc**2/(1+auc)
-    auc_se = (auc*(1-auc)+(tp-1)*(q1-auc**2)+(tn-1)*(q2-auc**2))/(tn*tp)
-    top = auc + auc_se*1.96
-    btm = auc - auc_se*1.96
+    q1 = auc / (2 - auc)
+    q2 = 2 * auc ** 2 / (1 + auc)
+    auc_se = (auc * (1 - auc) + (tp - 1) * (q1 - auc ** 2) + (tn - 1) * (q2 - auc ** 2)) / (tn * tp)
+    top = auc + auc_se * 1.96
+    btm = auc - auc_se * 1.96
     print(f"AUC: {auc:.3f} ({btm:.4f}-{top:.4f})")
     print(f"AUC SE: {auc_se:.9f}")
     plt.plot(fpr, tpr, label=f"{s.replace('-', ', ').title()}", ls=l)
     plt.legend(loc=4)
 
 agrv = joblib.load(f"models/{prefix}_{suffixes[0]}.pickle")
+suffixes[0]
+pd.Series(X.columns).to_csv(f"{prefix}_{suffixes[0]}_predictor-names.csv")
+X.head().to_csv(f"{prefix}_{suffixes[0]}_predictor-head.csv")
+
+bool_array = agrv.predict_proba(X)[:, 1] > 0.75
+np.where(bool_array, 1, 0)
 
 ag = joblib.load(f"models/{prefix}_{suffixes[3]}.pickle")
-z = (0.9105254877281309 - 0.6792348437172226) / np.sqrt((0.000092628**2)+(0.017763603**2))
-norm.sf(abs(z))*2 # 9.379754234884466e-39
+z = (0.9105254877281309 - 0.6792348437172226) / np.sqrt((0.000092628 ** 2) + (0.017763603 ** 2))
+norm.sf(abs(z)) * 2  # 9.379754234884466e-39
 
 plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r', alpha=.8)
 plt.title("Mild/Severe Classification Logistic Regression")
@@ -210,18 +201,17 @@ plt.tight_layout()
 plt.savefig(f"plots/{prefix}_{suffixes[0]}.png", dpi=300)
 plt.show()
 
-
 def plot_learning_curve(
-    estimator,
-    X,
-    y,
-    title="Learning Curve",
-    axes=None,
-    ylim=None,
-    cv=None,
-    n_jobs=None,
-    train_sizes=np.linspace(.2, 1.0, 5),
-    random_state=1
+        estimator,
+        X,
+        y,
+        title="Learning Curve",
+        axes=None,
+        ylim=None,
+        cv=None,
+        n_jobs=None,
+        train_sizes=np.linspace(.2, 1.0, 5),
+        random_state=1
 ):
     """
     Generate 3 plots: the test and training learning curve, the training
@@ -303,7 +293,7 @@ def plot_learning_curve(
         train_sizes=train_sizes,
         return_times=True,
         random_state=random_state
-        )
+    )
     train_scores_mean = np.mean(train_scores, axis=1)
     train_scores_std = np.std(train_scores, axis=1)
     test_scores_mean = np.mean(test_scores, axis=1)
@@ -312,15 +302,15 @@ def plot_learning_curve(
     # Plot learning curve
     axes.grid()
     axes.fill_between(train_sizes, train_scores_mean - train_scores_std,
-                         train_scores_mean + train_scores_std, alpha=0.1,
-                         color="r")
+                      train_scores_mean + train_scores_std, alpha=0.1,
+                      color="r")
     axes.fill_between(train_sizes, test_scores_mean - test_scores_std,
-                         test_scores_mean + test_scores_std, alpha=0.1,
-                         color="b")
+                      test_scores_mean + test_scores_std, alpha=0.1,
+                      color="b")
     axes.plot(train_sizes, train_scores_mean, 'o-', color="r",
-                 label="Training score")
+              label="Training score")
     axes.plot(train_sizes, test_scores_mean, 'o-', color="b",
-                 label="Cross-validation score")
+              label="Cross-validation score")
     axes.legend(loc="best")
 
     return plt
@@ -347,22 +337,21 @@ p_list = [
         pd.crosstab(var_df["is_red"], var_df[feature])
     )[1]
     for feature in var_df.columns[1:]
-    ]
-
+]
 
 p_list2 = [
     sm.stats.Table(
         pd.crosstab(var_df["is_red"], var_df[feature])
-        ).test_ordinal_association().pvalue
+    ).test_ordinal_association().pvalue
     for feature in var_df.columns[1:]
-    ]
+]
 
 t_list = [
     sm.stats.Table2x2(
         pd.crosstab(var_df["is_red"], var_df[feature])
-        )
+    )
     for feature in var_df.columns[1:]
-    ]
+]
 
 t_out = [(t.oddsratio, t.oddsratio_confint(), t.oddsratio_pvalue()) for t in t_list]
 oddsratio, confint, pvalue = zip(*t_out)
@@ -375,12 +364,12 @@ pval_df = pd.DataFrame({
     "odds_ratio": oddsratio,
     "upper": upp,
     "odds_ratio_pvalue": pvalue,
-    },
+},
     index=var_df.columns[1:]
-    )
+)
 
 pval_df.to_csv(f"data/2020-10-21_p-values.csv")
-X.iloc[:,1:-6]
+X.iloc[:, 1:-6]
 sig = pval_df["odds_ratio_pvalue"].lt(0.021)
 gt2 = pval_df["odds_ratio"].gt(2)
 lt_half = pval_df["odds_ratio"].lt(0.5)

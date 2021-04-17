@@ -99,7 +99,7 @@ ors = ors.drop([
     'age',
     'Asia',
     "Europe",
-    "male",
+    # "male",
     'North America',
     'South America',
 ]).rename(
@@ -107,17 +107,37 @@ ors = ors.drop([
     axis=1
 )
 
-ors_ann = ors.join(ann)
+logreg_ors = pd.read_csv("data/2020-10-21_top-and-btm-ors.csv", index_col=0)
 
-ors_ann["mutation_type"] = ors_ann["EFF[*].EFFECT"].map({
-    "synonymous_variant": "Silent",
+logreg_ors.shape
+loav = logreg_ors.join(ann).join(var)
+loav = loav.reset_index().drop_duplicates(keep="first", subset=["index"])
+loav["mutation_type"] = loav["EFF[*].EFFECT"].map({
+    "synonymous_variant": "silent",
     "upstream_gene_variant": np.nan,
     "downstream_gene_variant": np.nan,
-    "missense_variant": "Missense",
-    "stop_gained": "Nonsense",
-    "frameshift_variant": "Frameshift",
-    "intergenic_region": "Non-coding",
-    "disruptive_inframe_deletion": "Deletion"
+    "missense_variant": "missense",
+    "stop_gained": "nonsense",
+    "frameshift_variant": "frameshift",
+    "intergenic_region": "non-coding",
+    "disruptive_inframe_deletion": "deletion"
+})
+loav
+loav.to_csv("data/logreg_ors.csv")
+
+ann.loc["G29711T", "EFF[*].EFFECT":]
+
+ors_ann = ors.join(ann)
+
+ors_ann["mutation_type"] = ors_ann["eff[*].effect"].map({
+    "synonymous_variant": "silent",
+    "upstream_gene_variant": np.nan,
+    "downstream_gene_variant": np.nan,
+    "missense_variant": "missense",
+    "stop_gained": "nonsense",
+    "frameshift_variant": "frameshift",
+    "intergenic_region": "non-coding",
+    "disruptive_inframe_deletion": "deletion"
  })
 
 
@@ -242,6 +262,9 @@ ax2.set_position(box)
 ax1.set_ylim(10**-4.9, 19.99)
 ax0.set_ylim(35.01, 48)
 # ax1.set_yscale('log', base=10)
+sm = plt.cm.ScalarMappable(cmap=rdgn, norm=tsn)
+sm.set_array([])
+plt.colorbar(sm)
 ax1.legend(
     handles=legend_elements,
     loc="upper left",
