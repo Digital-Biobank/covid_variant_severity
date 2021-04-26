@@ -129,7 +129,7 @@ ann.loc["G29711T", "EFF[*].EFFECT":]
 
 ors_ann = ors.join(ann)
 
-ors_ann["mutation_type"] = ors_ann["eff[*].effect"].map({
+ors_ann["mutation_type"] = ors_ann["EFF[*].EFFECT"].map({
     "synonymous_variant": "silent",
     "upstream_gene_variant": np.nan,
     "downstream_gene_variant": np.nan,
